@@ -149,6 +149,7 @@ PaError Pa_QueryDevices( void )
     int      numDevices = 0;
     PaError  testResult;
     PaError  result = paNoError;
+    char     *envdev;
 
     sDefaultInputDeviceID = paNoDevice;
     sDefaultOutputDeviceID = paNoDevice;
@@ -206,7 +207,7 @@ PaError Pa_QueryDevices( void )
        checked them yet above  - MR */
 
     DBUG(("Checking for AUDIODEV and UTAUDIODEV\n"));
-    char *envdev = getenv("AUDIODEV");
+    envdev = getenv("AUDIODEV");
     if (envdev != NULL && !strstr(envdev, DEVICE_NAME_BASE)) {
         result = paNoError;
 
