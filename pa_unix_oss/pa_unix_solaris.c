@@ -32,7 +32,9 @@
 
 /* Modification history:
    20020621: Initial cut at Solaris modifications jointly by Sam Bayer
-   and Augustus Saunders. */
+             and Augustus Saunders.
+   20030206 - Martin Rohrbach - various mods for Solaris
+ */
 
 #define __solaris_native__
 
@@ -46,7 +48,7 @@
 
 /*********************************************************************
  * Try to open the named device.
- * If it opens, try to set various rates and formats and fill in 
+ * If it opens, try to set various rates and formats and fill in
  * the device info structure.
  */
 PaError Pa_QueryDevice( const char *deviceName, internalPortAudioDevice *pad )
@@ -60,15 +62,21 @@ PaError Pa_QueryDevice( const char *deviceName, internalPortAudioDevice *pad )
     int ratesToTry[9] = {96000, 48000, 44100, 32000, 24000, 22050, 16000, 11025, 8000};
     int i;
     audio_info_t solaris_info;
+    audio_device_t device_info;
 
     /* douglas:
      we have to do this querying in a slightly different order. apparently
-     some sound cards will give you different info based on their settins. 
+     some sound cards will give you different info based on their settins.
      e.g. a card might give you stereo at 22kHz but only mono at 44kHz.
      the correct order for OSS is: format, channels, sample rate
-     
+
     */
-    if ( (tempDevHandle = open(deviceName,O_WRONLY|O_NONBLOCK))  == -1 )
+	/*
+	 to check a device for it's capabilities, it's probably better to use the
+	 equivalent "-ctl"-descriptor - MR
+	*/
+    char devname[strlen(deviceName) + 4];
+    if ( (tempDevHandle = open(strcat(strcpy(devname, deviceName), "ctl"), O_WRONLY|O_NONBLOCK))  == -1 )
     {
         DBUG(("Pa_QueryDevice: could not open %s\n", deviceName ));
         return paHostError;
@@ -125,7 +133,7 @@ PaError Pa_QueryDevice( const char *deviceName, internalPortAudioDevice *pad )
 	      if( temp > maxNumChannels ) maxNumChannels = temp; /* Save maximum. */
 	  }
       }
-	
+
     pad->pad_Info.maxOutputChannels = maxNumChannels;
     DBUG(("Pa_QueryDevice: maxNumChannels = %d\n", maxNumChannels))
 
@@ -171,7 +179,14 @@ PaError Pa_QueryDevice( const char *deviceName, internalPortAudioDevice *pad )
     pad->pad_Info.numSampleRates = numSampleRates;
     pad->pad_Info.sampleRates = pad->pad_SampleRates;
 
-    pad->pad_Info.name = deviceName;
+    /* query for the device name instead of using the filesystem-device - MR */
+	if (ioctl(tempDevHandle, AUDIO_GETDEV, &device_info) == -1) {
+      pad->pad_Info.name = deviceName;
+    } else {
+      char *pt = (char *)PaHost_AllocateFastMemory(strlen(device_info.name));
+      strcpy(pt, device_info.name);
+      pad->pad_Info.name = pt;
+    }
 
     result = paNoError;
 
@@ -273,7 +288,7 @@ void Pa_SetLatency( int devHandle, int numBuffers, int framesPerBuffer, int chan
 {
   int     bufferSize;
   audio_info_t solaris_info;
-  
+
   /* Increase size of buffers and reduce number of buffers to reduce latency inside driver. */
   while( numBuffers > 8 )
     {
@@ -289,18 +304,18 @@ void Pa_SetLatency( int devHandle, int numBuffers, int framesPerBuffer, int chan
 
   /* SAM 6/6/02: Documentation says to pause and flush before
      changing buffer size. */
-  
+
   if (Pa_PauseAndFlush(devHandle) != paNoError) {
     ERR_RPT(("Pa_SetLatency: could not pause audio\n" ));
     return;
   }
-      
+
   AUDIO_INITINFO(&solaris_info);
 
   /* AS: Doesn't look like solaris has multiple buffers,
      so I'm being conservative and
      making one buffer.  Might not be what we want... */
-  
+
   solaris_info.play.buffer_size = solaris_info.record.buffer_size = bufferSize;
 
   if (ioctl(devHandle, AUDIO_SETINFO, &solaris_info) == -1)
@@ -318,7 +333,7 @@ PaTimestamp Pa_StreamTime( PortAudioStream *stream )
     audio_info_t solaris_info;
 
     if( past == NULL ) return paBadStreamPtr;
-    
+
     pahsc = (PaHostSoundControl *) past->past_DeviceData;
 
     ioctl(pahsc->pahsc_OutputHandle, AUDIO_GETINFO, &solaris_info);
@@ -346,12 +361,12 @@ static PaError Pa_PauseAndFlush(int devHandle)
   if (ioctl(devHandle, I_FLUSH, FLUSHRW) == -1)
     {
       ERR_RPT(("Pa_FlushStream failed.\n"));
-      
-      /* Unpause! */      
+
+      /* Unpause! */
       AUDIO_INITINFO(&solaris_info);
       solaris_info.play.pause = solaris_info.record.pause = 0;
       ioctl(devHandle, AUDIO_SETINFO, &solaris_info);
-      
+
       return paHostError;
     }
   return paNoError;
