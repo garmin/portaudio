@@ -234,7 +234,7 @@ PaError OpenAudioStream( PABLIO_Stream **rwblPtr, double sampleRate,
      */
     {
         const int safeLatencyMSec = 200;
-        int minLatencyMSec = (1000 * numFrames) / sampleRate;
+        int minLatencyMSec = (int) ((1000 * numFrames) / sampleRate);
         if( minLatencyMSec < safeLatencyMSec )
         {
             numFrames = (int) ((safeLatencyMSec * sampleRate) / 1000);
