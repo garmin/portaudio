@@ -1419,7 +1419,6 @@ static OSStatus PAOSX_DevicePropertyListener (AudioDeviceID					inDevice,
 
     if(inPropertyID == kAudioDevicePropertyStreamFormat)
     {    
-            
         /* Get target device format */
         dataSize = sizeof(hardwareStreamFormat);
         err = AudioDeviceGetProperty(inDevice, 0, isInput,
@@ -1431,8 +1430,6 @@ static OSStatus PAOSX_DevicePropertyListener (AudioDeviceID					inDevice,
             goto error;
         }
 
-        DBUG(("PAOSX_DevicePropertyListener: HW rate = %f\n", hardwareStreamFormat.mSampleRate ));
-        DBUG(("PAOSX_DevicePropertyListener: user rate = %f\n", past->past_SampleRate ));
         DBUG(("PAOSX_DevicePropertyListener: HW mChannelsPerFrame = %d\n", (int)hardwareStreamFormat.mChannelsPerFrame ));
         
         /* Set source user format. */
@@ -1461,6 +1458,8 @@ static OSStatus PAOSX_DevicePropertyListener (AudioDeviceID					inDevice,
             srcFormatPtr = &userStreamFormat;
             destFormatPtr = &hardwareStreamFormat;
         }
+        DBUG(("PAOSX_DevicePropertyListener: source rate = %f\n", srcFormatPtr->mSampleRate ));
+        DBUG(("PAOSX_DevicePropertyListener: dest rate = %f\n", destFormatPtr->mSampleRate ));
         
         // Don't delete old converter until we create new one so we don't pull
         // the rug out from under other audio threads.
@@ -1502,6 +1501,7 @@ static PaError PaOSX_CreateInputRingBuffer( internalPortAudioStream   *past )
     UInt32    framesPerHostBuffer;
     UInt32    bytesForDevice;
     UInt32    bytesForUser;
+    UInt32    bytesPerFrame;
     AudioStreamBasicDescription formatDesc;
     
     dataSize = sizeof(formatDesc);
@@ -1529,10 +1529,10 @@ static PaError PaOSX_CreateInputRingBuffer( internalPortAudioStream   *past )
         return paHostError;
     }
     
-    bytesForDevice = framesPerHostBuffer * formatDesc.mChannelsPerFrame * sizeof(Float32) * 2;
+    bytesPerFrame = past->past_NumInputChannels * sizeof(Float32);
     
-    bytesForUser = past->past_FramesPerUserBuffer * past->past_NumInputChannels *
-        sizeof(Float32) * 3 * sampleRateRatio;
+    bytesForDevice = framesPerHostBuffer * bytesPerFrame * 2;
+    bytesForUser = past->past_FramesPerUserBuffer * bytesPerFrame * 3 * sampleRateRatio;
         
     // Ring buffer should be large enough to consume audio input from device,
     // and to deliver a complete user buffer.
@@ -1547,8 +1547,13 @@ static PaError PaOSX_CreateInputRingBuffer( internalPortAudioStream   *past )
         return paInsufficientMemory;
     }
     RingBuffer_Init( &pahsc->ringBuffer, numBytes, pahsc->ringBufferData );
-    // make it look full at beginning
-    RingBuffer_AdvanceWriteIndex( &pahsc->ringBuffer, numBytes );
+    // Make it look almost full at beginning. We must advance by an integral number of frames
+    // so that the channels don't get scrambled when numChannels is not a power of 2.
+    {
+        int numZeroFrames = numBytes / bytesPerFrame;
+        int numZeroBytes = numZeroFrames * bytesPerFrame;
+        RingBuffer_AdvanceWriteIndex( &pahsc->ringBuffer, numZeroBytes );
+    }
     
     return paNoError;
 }
