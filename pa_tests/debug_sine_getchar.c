@@ -1,7 +1,7 @@
 /*
  * $Id$
- * patest_sine.c
- * Play a sine wave using the Portable Audio api for several seconds.
+ *
+ * Play a sine wave using the Portable Audio api until ENTER hit.
  *
  * Authors:
  *    Ross Bencina <rossb@audiomulch.com>
