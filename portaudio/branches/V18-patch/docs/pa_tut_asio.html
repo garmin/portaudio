@@ -32,6 +32,9 @@ Compiling for ASIO (Windows or Macintosh)</h2>
 an ASIO application, you must first <a href="http://www.steinberg.net/developers/ASIO2SDKAbout.phtml">download
 the ASIO SDK</a> from Steinberg. You also need to obtain ASIO drivers from
 the manufacturer of your audio hardware.
+<p>Note: there is a bug in the <b>Macintosh</b> ASIO code. Mac users should
+read the file "pa_asio:readme_asio_sdk_patch.txt" for information on how
+to fix the bug.
 <p>Note: I am using '/' as a file separator below. On Macintosh replace
 '/' with ':'. On Windows, replace '/' with '\'.
 <p>Several files are common to all PortAudio implementations. Add the following
@@ -51,11 +54,12 @@ host/asiolist.cpp</pre>
 </blockquote>
 and add these directories to the path for include files
 <blockquote>
-<pre>asiosdk2/host/pc&nbsp;&nbsp; (for Windows)
-asiosdk2/common
-asiosdk2/host</pre>
+<pre>asiosdk2/common
+asiosdk2/host
+asiosdk2/host/pc&nbsp;&nbsp; (for <b>Windows</b> only)</pre>
 </blockquote>
-also link with the system library "<b>winmm.lib</b>". For Visual C++:
+also (on <b>Windows</b> systems only) link with the system library "<b>winmm.lib</b>".
+For MS Visual C++:
 <ul>
 <li>
 select "Settings..." from the "Project" menu,</li>
