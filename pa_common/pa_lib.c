@@ -635,7 +635,7 @@ long Pa_CallConvertInt16( internalPortAudioStream   *past,
     {
         /* May already be in native format so just write directly to native buffer. */
         outputBuffer = (past->past_OutputSampleFormat == paInt16) ?
-                       nativeOutputBuffer : past->past_OutputBuffer;
+                       (void*)nativeOutputBuffer : past->past_OutputBuffer;
     }
     /*
      AddTraceMessage("Pa_CallConvertInt16: inputBuffer = ", (int) inputBuffer );
