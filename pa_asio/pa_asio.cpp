@@ -57,6 +57,8 @@
         12-04-02 Add Mac includes for <Devices.h> and <Timer.h> : Phil Burk
         13-04-02 Removes another compiler warning : Stephane Letz
         30-04-02 Pa_ASIO_QueryDeviceInfo bug correction, memory allocation checking, better error handling : D Viens, P Burk, S Letz
+        01-12-02 Fix Pa_GetDefaultInputDeviceID and Pa_GetDefaultOuputDeviceID result when no driver are available : S Letz
+        05-12-02 More debug messages : S Letz
         
         TO DO :
         
@@ -453,7 +455,8 @@ static PaError Pa_ASIO_QueryDeviceInfo( internalPortAudioDevice * ipad )
 #elif WINDOWS
         numDrivers = asioDrivers->asioGetNumDev();
 #endif
-        DBUG(("PaASIO_QueryDeviceInfo: numDrivers = %d\n", numDrivers ));
+
+        DBUG(("PaASIO_QueryDeviceInfo: number of installed drivers = %d\n", numDrivers ));
 
         for (int driver = 0 ; driver < numDrivers ; driver++)
         {
@@ -462,67 +465,88 @@ static PaError Pa_ASIO_QueryDeviceInfo( internalPortAudioDevice * ipad )
                     asioDriverInfo.pahsc_driverInfo.asioVersion = 2; // FIXME - is this right? PLB
                     asioDriverInfo.pahsc_driverInfo.sysRef = GetDesktopWindow(); // FIXME - is this right? PLB
             #endif
+            
+            DBUG(("---------------------------------------\n"));
+            
+            DBUG(("PaASIO_QueryDeviceInfo: Driver name = %s\n", names[driver]));
   
             /* If the driver can be loaded : */
-            if ( !Pa_ASIO_loadAsioDriver(names[driver]) )
-			{
-				DBUG(("PaASIO_QueryDeviceInfo could not loadAsioDriver %s\n", names[driver]));
-			}
-			else if( (asioError = ASIOInit(&asioDriverInfo.pahsc_driverInfo)) != ASE_OK )
-			{
-				DBUG(("PaASIO_QueryDeviceInfo: ASIOInit returned %d for %s\n", asioError, names[driver]));
-			}
-			else if( (ASIOGetChannels(&InputChannels, &OutputChannels) != ASE_OK))
-			{
-				DBUG(("PaASIO_QueryDeviceInfo could not ASIOGetChannels for %s\n", names[driver]));
-			}
-			else
-			{
-		            /* Gets the name */
-                    dev = &(ipad[sNumDevices].pad_Info);
-                    dev->name = names[driver];
-                    names[driver] = 0;
+            if ( !Pa_ASIO_loadAsioDriver(names[driver]) ){
+                     DBUG(("PaASIO_QueryDeviceInfo could not loadAsioDriver %s\n", names[driver]));
+            } else {
+            
+                    DBUG(("PaASIO_QueryDeviceInfo: loadAsioDriver OK\n"));
                     
-                    /* Gets Input and Output channels number */
-                    dev->maxInputChannels = InputChannels;
-                    dev->maxOutputChannels = OutputChannels;
+                    if((asioError = ASIOInit(&asioDriverInfo.pahsc_driverInfo)) != ASE_OK){
                     
-                    DBUG(("PaASIO_QueryDeviceInfo: InputChannels = %d\n", InputChannels ));
-                    DBUG(("PaASIO_QueryDeviceInfo: OutputChannels = %d\n", OutputChannels ));
+                         DBUG(("PaASIO_QueryDeviceInfo: ASIOInit returned %d for %s\n", asioError, names[driver]));
+                         
+                    }else {
                     
-                    /* Make room in case device supports all rates. */
-                    sampleRates = (double*)PaHost_AllocateFastMemory(MAX_NUMSAMPLINGRATES * sizeof(double));
-                    /* check memory */
-                    if (!sampleRates) {
-                    	ASIOExit();
-                    	return paInsufficientMemory;
-                    }
-                    dev->sampleRates = sampleRates;
-                    dev->numSampleRates = 0;
-                    
-                    /* Loop through the possible sampling rates and check each to see if the device supports it. */
-                    for (int index = 0; index < MAX_NUMSAMPLINGRATES; index++) {
-                            if (ASIOCanSampleRate(possibleSampleRates[index]) != ASE_NoClock) {
-                                    DBUG(("PortAudio : possible sample rate = %d\n", (long)possibleSampleRates[index]));
-                                    dev->numSampleRates += 1;
-                                    *sampleRates = possibleSampleRates[index];
-                                    sampleRates++;
+                    	 DBUG(("PaASIO_QueryDeviceInfo: ASIOInit OK \n"));
+                    	 
+                    	 if(ASIOGetChannels(&InputChannels, &OutputChannels) != ASE_OK){
+                    	 
+                            DBUG(("PaASIO_QueryDeviceInfo could not ASIOGetChannels for %s\n", names[driver]));
+                            
+                         }else {
+                            
+                            DBUG(("PaASIO_QueryDeviceInfo: ASIOGetChannels OK \n"));
+                                
+                            /* Gets the name */
+                            dev = &(ipad[sNumDevices].pad_Info);
+                            dev->name = names[driver];
+                            names[driver] = 0;
+                            
+                            /* Gets Input and Output channels number */
+                            dev->maxInputChannels = InputChannels;
+                            dev->maxOutputChannels = OutputChannels;
+                            
+                            DBUG(("PaASIO_QueryDeviceInfo: InputChannels = %d\n", InputChannels ));
+                            DBUG(("PaASIO_QueryDeviceInfo: OutputChannels = %d\n", OutputChannels ));
+                            
+                            /* Make room in case device supports all rates. */
+                            sampleRates = (double*)PaHost_AllocateFastMemory(MAX_NUMSAMPLINGRATES * sizeof(double));
+                            /* check memory */
+                            if (!sampleRates) {
+                                ASIOExit();
+                                return paInsufficientMemory;
                             }
+                            dev->sampleRates = sampleRates;
+                            dev->numSampleRates = 0;
+                            
+                            /* Loop through the possible sampling rates and check each to see if the device supports it. */
+                            for (int index = 0; index < MAX_NUMSAMPLINGRATES; index++) {
+                                    if (ASIOCanSampleRate(possibleSampleRates[index]) != ASE_NoClock) {
+                                            DBUG(("PaASIO_QueryDeviceInfo: possible sample rate = %d\n", (long)possibleSampleRates[index]));
+                                            dev->numSampleRates += 1;
+                                            *sampleRates = possibleSampleRates[index];
+                                            sampleRates++;
+                                    }
+                            }
+                            
+                            /* We assume that all channels have the same SampleType, so check the first */
+                            channelInfos.channel = 0;
+                            channelInfos.isInput = 1;
+                           
+                            if ((asioError = ASIOGetChannelInfo(&channelInfos)) == ASE_NotPresent) {
+                            	DBUG(("PaASIO_QueryDeviceInfo: ASIOGetChannelInfo returned %d \n",asioError)); 
+                            }
+                            
+                            dev->nativeSampleFormats = Pa_ASIO_Convert_SampleFormat(channelInfos.type);
+                            
+                            /* unload the driver */
+                            if ((asioError = ASIOExit()) != ASE_OK) {
+                            	DBUG(("PaASIO_QueryDeviceInfo: ASIOExit returned %d \n",asioError)); 
+                            }
+                            
+                            sNumDevices++;
+                        }
+		                   
                     }
+               }
+        }
                     
-                    /* We assume that all channels have the same SampleType, so check the first */
-                    channelInfos.channel = 0;
-                    channelInfos.isInput = 1;
-                    ASIOGetChannelInfo(&channelInfos);
-                    
-                    dev->nativeSampleFormats = Pa_ASIO_Convert_SampleFormat(channelInfos.type);
-                    
-                    /* unload the driver */
-                    ASIOExit();
-                    sNumDevices++;
-                }
-        }       
-        
         /* free only unused names */
         for (i = 0 ; i < PA_MAX_DEVICE_INFO ; i++) if (names[i]) PaHost_FreeFastMemory(names[i],32);
         
@@ -2873,13 +2897,13 @@ const PaDeviceInfo* Pa_GetDeviceInfo( PaDeviceID id )
 /*************************************************************************/
 PaDeviceID Pa_GetDefaultInputDeviceID( void )
 {
-        return sDefaultInputDeviceID;
+        return (sNumDevices > 0) ? sDefaultInputDeviceID : paNoDevice;
 }
 
 /*************************************************************************/
 PaDeviceID Pa_GetDefaultOutputDeviceID( void )
 {
-        return sDefaultOutputDeviceID;
+		return (sNumDevices > 0) ? sDefaultOutputDeviceID : paNoDevice;
 }
 
 /*************************************************************************/
