@@ -49,7 +49,8 @@
 #define TEST_UINT8    (0)
 #define TEST_INT8     (0)
 #define TEST_INT16    (0)
-#define TEST_FLOAT32  (1)
+#define TEST_INT32    (1)
+#define TEST_FLOAT32  (0)
 
 #if TEST_UINT8
 #define TEST_FORMAT         paUInt8
@@ -71,6 +72,13 @@ typedef short               SAMPLE_t;
 #define SAMPLE_ZERO         (0)
 #define DOUBLE_TO_SAMPLE(x) (SAMPLE_ZERO + (SAMPLE_t)(32767 * (x)))
 #define FORMAT_NAME         "Signed 16 Bit"
+
+#elif TEST_INT32
+#define TEST_FORMAT         paInt32
+typedef long               SAMPLE_t;
+#define SAMPLE_ZERO         (0)
+#define DOUBLE_TO_SAMPLE(x) (SAMPLE_ZERO + (SAMPLE_t)(0x7FFFFFFF * (x)))
+#define FORMAT_NAME         "Signed 32 Bit"
 
 #elif TEST_FLOAT32
 #define TEST_FORMAT         paFloat32

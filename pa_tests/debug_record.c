@@ -42,7 +42,7 @@
 #define SAMPLE_RATE      (22050)
 #define NUM_SECONDS          (6)
 #define NUM_CHANNELS         (2)
-#define FRAMES_PER_BUFFER  (64)
+#define FRAMES_PER_BUFFER   (64)
 /* #define DITHER_FLAG     (paDitherOff) */
 #define DITHER_FLAG          (0)
 
@@ -51,14 +51,22 @@
 #define PA_SAMPLE_TYPE  paFloat32
 typedef float SAMPLE;
 #define SAMPLE_SILENCE  (0.0f)
+
+#elif 0
+#define PA_SAMPLE_TYPE  paInt32
+typedef long SAMPLE;
+#define SAMPLE_SILENCE  (0)
+
 #elif 0
 #define PA_SAMPLE_TYPE  paInt16
 typedef short SAMPLE;
 #define SAMPLE_SILENCE  (0)
+
 #elif 0
 #define PA_SAMPLE_TYPE  paInt8
 typedef char SAMPLE;
 #define SAMPLE_SILENCE  (0)
+
 #else
 #define PA_SAMPLE_TYPE  paUInt8
 typedef unsigned char SAMPLE;
@@ -180,7 +188,10 @@ int main(void)
     int        numSamples;
     int        numBytes;
     SAMPLE     max, average, val;
-    printf("debug_record.c, sample rate = %d\n", SAMPLE_RATE ); fflush(stdout);
+    
+    printf("debug_record.c, sampleRate = %d, numChannels = %d\n",
+        SAMPLE_RATE, NUM_CHANNELS );
+    fflush(stdout);
 
     data.maxFrameIndex = totalFrames = NUM_SECONDS * SAMPLE_RATE; /* Record for a few seconds. */
     data.frameIndex = 0;
