@@ -95,6 +95,8 @@
  03.05.2003 - Phil Burk and Dominic Mazzoni - interleave and deinterleave multiple
               CoreAudio buffers. Needed for MOTU828 and some other N>2 channel devices.
               See code related to "streamInterleavingBuffer".
+ 03.06.2003 - Phil Burk and Ryan Francesconi - fixed numChannels query for MOTU828.
+              Handle fact that MOTU828 gives you 8 channels even when you ask for 2!
 */
 
 #include <CoreServices/CoreServices.h>
@@ -509,7 +511,7 @@ static int PaOSX_ScanDevices( Boolean isInput )
         // try to fill in next PaHostDeviceInfo
         hostDeviceInfo = &sDeviceInfos[sNumPaDevices];
         result = PaOSX_QueryDeviceInfo( hostDeviceInfo, coreDeviceIndex, isInput );
-        DBUG(("PaOSX_ScanDevices: paDevId = %d, coreDevId = %d\n", sNumPaDevices, coreDeviceIndex ));
+        DBUG(("PaOSX_ScanDevices: paDevId = %d, coreDevId = %d, result = %d\n", sNumPaDevices, coreDeviceIndex, result ));
         if( result > 0 )
         {
             sNumPaDevices += 1;  // bump global counter if we got one
@@ -531,7 +533,6 @@ static int PaOSX_GetMaxChannels( AudioDeviceID devID, Boolean isInput )
     AudioStreamBasicDescription formatDesc;
     int              maxChannels;
     int              numChannels;
-    int              channelOffset;
     Boolean          gotMax;
 
 	// Scan to find highest matching format.
@@ -539,43 +540,40 @@ static int PaOSX_GetMaxChannels( AudioDeviceID devID, Boolean isInput )
     // For example, some 8 channel devices return 2 when given 256 as input.
     gotMax = false;
     maxChannels = 0;
-    channelOffset = 2;
-    while( !gotMax && (channelOffset <= 1024) )
+    while( !gotMax )
     {
     
         memset( &formatDesc, 0, sizeof(formatDesc));
-        numChannels = maxChannels + channelOffset;
-        DBUG(("PaOSX_GetMaxChannels: try numChannels = %d = %d + %d\n",
-            numChannels, maxChannels, channelOffset ));
+        numChannels = maxChannels + 2;
+        DBUG(("PaOSX_GetMaxChannels: try numChannels = %d = %d + 2\n",
+            numChannels, maxChannels ));
         formatDesc.mChannelsPerFrame = numChannels;
         outSize = sizeof(formatDesc);
-#if 0
-        // This hack is for debugging the search algorithm.
-        err = 0;
-        if (numChannels > 22 ) formatDesc.mChannelsPerFrame = 2;
-#else
+
         err = AudioDeviceGetProperty( devID, 0,
             isInput, kAudioDevicePropertyStreamFormatMatch, &outSize, &formatDesc);
-#endif
-        if( (err != noErr) || (formatDesc.mChannelsPerFrame != numChannels) )
+
+        DBUG(("PaOSX_GetMaxChannels: err 0x%0x, formatDesc.mChannelsPerFrame= %d\n",
+            err, formatDesc.mChannelsPerFrame ));
+        if( err != noErr )
         {
-            if( channelOffset == 2 )
-            {
-            // That's about as close as we can get.
-                gotMax = true;
-            }
-            else
-            {
-            // Slow down scan so we can fine tune maxChannels.
-                channelOffset = 2;
-            }
+			gotMax = true;
         }
         else
         {
             // This value worked so we have a new candidate for maxChannels.
-            maxChannels = numChannels;
-            // Scan geometrically to speed up search on big devices.
-        	channelOffset *= 2;
+            if (formatDesc.mChannelsPerFrame > numChannels)
+            {
+            	maxChannels =  formatDesc.mChannelsPerFrame;
+            }
+            else if(formatDesc.mChannelsPerFrame < numChannels)
+            {
+             	gotMax = true;
+            }
+            else
+            {
+            	maxChannels = numChannels;            	
+            }
         }
     }
     return maxChannels;
@@ -644,6 +642,7 @@ static int PaOSX_QueryDeviceInfo( PaHostDeviceInfo *hostDeviceInfo, int coreDevi
     
     // Get the device name
     deviceInfo->name = PaOSX_DeviceNameFromID( devID, isInput );
+    DBUG(("PaOSX_QueryDeviceInfo: name = %s\n", deviceInfo->name ));
     return 1;
 
 error:
@@ -762,91 +761,79 @@ static OSStatus PaOSX_OutputConverterCallbackProc (AudioConverterRef			inAudioCo
 }
 
 /**********************************************************************
-** dmazzoni:
-** Convert from CoreAudio's arrangement of multiple buffers, each
-** containing interleaved samples, to the more sensible arrangement
-** of a single interleaved buffer.
-*/
-static char *PaOSX_CombineBuffers( internalPortAudioStream *past,
-                                   const AudioBufferList* inputData )
-{
-    PaHostSoundControl *pahsc = (PaHostSoundControl *) past->past_DeviceData;
-    int numBytes = 0;
-    int numChannels = 0;
-    int i, ch;
-    
-    /* Count bytes and channels across multiple buffers. */
-    for( i=0; i<inputData->mNumberBuffers; i++ )
-    {
-        numBytes += inputData->mBuffers[i].mDataByteSize;
-        numChannels += inputData->mBuffers[i].mNumberChannels;
-    }
-
-    /* Allocate temporary buffer if needed. */
-    if ( (pahsc->input.streamInterleavingBuffer != NULL) &&
-         (pahsc->input.streamInterleavingBufferLen < numBytes) )
-    {
-        PaHost_FreeFastMemory( pahsc->input.streamInterleavingBuffer, pahsc->input.streamInterleavingBufferLen );
-        pahsc->input.streamInterleavingBuffer = NULL;
-    }
-    if ( pahsc->input.streamInterleavingBuffer == NULL )
-    {
-        pahsc->input.streamInterleavingBufferLen = numBytes;
-        pahsc->input.streamInterleavingBuffer = (float *)PaHost_AllocateFastMemory( pahsc->input.streamInterleavingBufferLen );
-    }
-
-    /* Perform interleaving by writing to temp buffer. */
-    ch = 0;
-    for( i=0; i<inputData->mNumberBuffers; i++ )
-    {
-        int j;
-        int chans = inputData->mBuffers[i].mNumberChannels;
-        int len = inputData->mBuffers[i].mDataByteSize / (sizeof(float) * chans);
-        for( j=0; j<chans; j++ )
-        {
-            int k;
-            for( k=0; k<len; k++ )
-            {
-                pahsc->input.streamInterleavingBuffer[ k*numChannels + ch ] = 
-                   ((float *)inputData->mBuffers[i].mData)[ k*chans + j ];
-            }
-            ch++;
-        }
-    }
-
-    return (char *)pahsc->input.streamInterleavingBuffer;
-}
-
-/**********************************************************************
 ** If data available, write it to the Ring Buffer so we can
 ** pull it from the other side.
 */
 static OSStatus PaOSX_WriteInputRingBuffer( internalPortAudioStream   *past,
         const AudioBufferList*  inInputData  )
 {
-	int                 i;
-    long                writeRoom;
-    long                numBytes;
-    char               *inputNativeBufferfPtr = NULL;
+    int   numBytes = 0;
+    int   currentInterleavedChannelIndex;
+    int   numFramesInInputBuffer;
+    int   numInterleavedChannels;
+    int   numChannelsRemaining;
+	int   i;
+    long  writeRoom;
+    char *inputNativeBufferfPtr = NULL;
     PaHostSoundControl *pahsc = (PaHostSoundControl *) past->past_DeviceData;
 
     /* Do we need to interleave the buffers first? */
-    if (inInputData->mNumberBuffers > 0) // FIXME > 1
+    if( past->past_NumInputChannels != inInputData->mBuffers[0].mNumberChannels )
     {
-        inputNativeBufferfPtr = PaOSX_CombineBuffers( past, inInputData );
+		
+		numFramesInInputBuffer = inInputData->mBuffers[0].mDataByteSize / (sizeof(float) * inInputData->mBuffers[0].mNumberChannels);
+		
+		numBytes = numFramesInInputBuffer * sizeof(float) * past->past_NumInputChannels;
+	
+		/* Allocate temporary buffer if needed. */
+		if ( (pahsc->input.streamInterleavingBuffer != NULL) &&
+			 (pahsc->input.streamInterleavingBufferLen < numBytes) )
+		{
+			PaHost_FreeFastMemory( pahsc->input.streamInterleavingBuffer, pahsc->input.streamInterleavingBufferLen );
+			pahsc->input.streamInterleavingBuffer = NULL;
+		}
+		if ( pahsc->input.streamInterleavingBuffer == NULL )
+		{
+			pahsc->input.streamInterleavingBufferLen = numBytes;
+			pahsc->input.streamInterleavingBuffer = (float *)PaHost_AllocateFastMemory( pahsc->input.streamInterleavingBufferLen );
+		}
+	
+		/* Perform interleaving by writing to temp buffer. */
+		currentInterleavedChannelIndex = 0;
+		numInterleavedChannels = past->past_NumInputChannels;
+		numChannelsRemaining = numInterleavedChannels;
+		
+		for( i=0; i<inInputData->mNumberBuffers; i++ )
+		{
+			int j;
+			int numBufChannels = inInputData->mBuffers[i].mNumberChannels;
+			/* Don't use more than we need or more than we have. */
+			int numChannelsUsedInThisBuffer = (numChannelsRemaining < numBufChannels ) ?
+				  numChannelsRemaining : numBufChannels;
+			for( j=0; j<numChannelsUsedInThisBuffer; j++ )
+			{
+				int k;
+				/* Move one channel from CoreAudio buffer to interleaved buffer. */
+				for( k=0; k<numFramesInInputBuffer; k++ )
+				{
+					 pahsc->input.streamInterleavingBuffer[ k*numInterleavedChannels + currentInterleavedChannelIndex ] =
+						((float *)inInputData->mBuffers[i].mData)[ k*numBufChannels + j ];
+				}
+				currentInterleavedChannelIndex++;
+			}
+			numChannelsRemaining -= numChannelsUsedInThisBuffer;
+			if( numChannelsRemaining <= 0 ) break;
+		}
+
+        inputNativeBufferfPtr = (char *)pahsc->input.streamInterleavingBuffer;
     }
     else
     {
         inputNativeBufferfPtr = (char*)inInputData->mBuffers[0].mData;
+        numBytes += inInputData->mBuffers[0].mDataByteSize;
     }
 
     writeRoom = RingBuffer_GetWriteAvailable( &pahsc->ringBuffer );
-    numBytes = 0;
-    /* Sum byte count from multiple streams. */
-    for( i=0; i<inInputData->mNumberBuffers; i++ )
-    {
-        numBytes += inInputData->mBuffers[i].mDataByteSize;
-    }
     
     if( numBytes <= writeRoom )
     {
@@ -903,32 +890,33 @@ static OSStatus PaOSX_HandleOutput( internalPortAudioStream   *past,
     void               *outputNativeBufferfPtr = NULL;
     PaHostSoundControl *pahsc = (PaHostSoundControl *) past->past_DeviceData;
     UInt32              numBytes = 0;
-    int                 numChannels = 0;
-    Boolean             deinterleavingNeeded = (outOutputData->mNumberBuffers > 1);
+    int                 numChannelsRemaining;
+    Boolean             deinterleavingNeeded;
+    int                 numFramesInOutputBuffer;
+    
+    deinterleavingNeeded = past->past_NumOutputChannels != outOutputData->mBuffers[0].mNumberChannels;
+    
+	numFramesInOutputBuffer = outOutputData->mBuffers[0].mDataByteSize / (sizeof(float) * outOutputData->mBuffers[0].mNumberChannels);
     
     if( pahsc->mode != PA_MODE_INPUT_ONLY )
     {
         /* If we are using output, then we need an empty output buffer. */
         if( outOutputData->mNumberBuffers > 0 )
         {
+        	
             /* If we have multiple CoreAudio buffers, then we will need to deinterleave after conversion. */
             if( deinterleavingNeeded )
             {
-                int i;
+            	numBytes = numFramesInOutputBuffer * sizeof(float) * past->past_NumOutputChannels;
                 
-                for( i=0; i<outOutputData->mNumberBuffers; i++ )
-                {
-                    numBytes += outOutputData->mBuffers[i].mDataByteSize;
-                    numChannels += outOutputData->mBuffers[i].mNumberChannels;
-                }
-                
-                /* Allocate temporary buffer if needed. */
+                /* Free old buffer if we are allocating new one. */
                 if ( (pahsc->output.streamInterleavingBuffer != NULL) &&
                      (pahsc->output.streamInterleavingBufferLen < numBytes) )
                 {
                     PaHost_FreeFastMemory( pahsc->output.streamInterleavingBuffer, pahsc->output.streamInterleavingBufferLen );
                     pahsc->output.streamInterleavingBuffer = NULL;
                 }
+                /* Allocate interleaving buffer if needed. */
                 if ( pahsc->output.streamInterleavingBuffer == NULL )
                 {
                     pahsc->output.streamInterleavingBufferLen = numBytes;
@@ -959,22 +947,32 @@ static OSStatus PaOSX_HandleOutput( internalPortAudioStream   *past,
             /* Deinterleave data from PortAudio and write to multiple CoreAudio buffers. */
             if( deinterleavingNeeded )
             {
-                int i, ch = 0;
+                int numInterleavedChannels = past->past_NumOutputChannels;
+                int i, currentInterleavedChannelIndex = 0;
+                numChannelsRemaining = numInterleavedChannels;
+                
                 for( i=0; i<outOutputData->mNumberBuffers; i++ )
                 {
-                    int chans = outOutputData->mBuffers[i].mNumberChannels;
+                    int numBufChannels = outOutputData->mBuffers[i].mNumberChannels;
                     int j;            
-                    int len = outOutputData->mBuffers[i].mDataByteSize / (sizeof(float) * chans);
-                    for( j=0; j<chans; j++ )
+                    /* Don't use more than we need or more than we have. */
+                	int numChannelsUsedInThisBuffer = (numChannelsRemaining < numBufChannels ) ?
+                	      numChannelsRemaining : numBufChannels;
+                	
+                    for( j=0; j<numChannelsUsedInThisBuffer; j++ )
                     {
                         int k;
-                        for( k=0; k<len; k++ )
+                        /* Move one channel from interleaved buffer to CoreAudio buffer. */
+                        for( k=0; k<numFramesInOutputBuffer; k++ )
                         {
-                            ((float *)outOutputData->mBuffers[i].mData)[ k*chans + j ] =
-                                pahsc->output.streamInterleavingBuffer[ k*numChannels + ch ];
+                            ((float *)outOutputData->mBuffers[i].mData)[ k*numBufChannels + j ] =
+                                pahsc->output.streamInterleavingBuffer[ k*numInterleavedChannels + currentInterleavedChannelIndex ];
                         }
-                        ch++;
+                        currentInterleavedChannelIndex++;
                     }
+                    
+                    numChannelsRemaining -= numChannelsUsedInThisBuffer;
+                    if( numChannelsRemaining <= 0 ) break;
                 }
             }
         }
@@ -1134,7 +1132,7 @@ static PaError PaOSX_SetFormat( AudioDeviceID devID, Boolean isInput,
                 isInput, kAudioDevicePropertyStreamFormatMatch, &dataSize, &formatDesc);
                 
             DBUG(("PaOSX_SetFormat: closest rate is %f.\n", formatDesc.mSampleRate ));
-            DBUG(("PaOSX_SetFormat: closest numChannels is %d.\n", formatDesc.mChannelsPerFrame ));
+            DBUG(("PaOSX_SetFormat: closest numChannels is %d.\n", (int)formatDesc.mChannelsPerFrame ));
             // Set to closest if different from original.
             if( (err == noErr) &&
                 ((originalRate != formatDesc.mSampleRate) ||
@@ -1340,15 +1338,25 @@ static OSStatus PAOSX_DevicePropertyListener (AudioDeviceID					inDevice,
     {
         DBUG(("PAOSX_DevicePropertyListener: HW rate = %f\n", hardwareStreamFormat.mSampleRate ));
         DBUG(("PAOSX_DevicePropertyListener: user rate = %f\n", past->past_SampleRate ));
+        DBUG(("PAOSX_DevicePropertyListener: HW mChannelsPerFrame = %d\n", (int)hardwareStreamFormat.mChannelsPerFrame ));
         
         /* Set source user format. */
         userStreamFormat = hardwareStreamFormat;
         userStreamFormat.mSampleRate = past->past_SampleRate;	// sample rate of the user synthesis code
         userStreamFormat.mChannelsPerFrame = (isInput) ? past->past_NumInputChannels : past->past_NumOutputChannels;	//	the number of channels in each frame
+        DBUG(("PAOSX_DevicePropertyListener: User mChannelsPerFrame = %d\n", (int)userStreamFormat.mChannelsPerFrame ));
     
         userStreamFormat.mBytesPerFrame = userStreamFormat.mChannelsPerFrame * sizeof(float);
         userStreamFormat.mBytesPerPacket = userStreamFormat.mBytesPerFrame * userStreamFormat.mFramesPerPacket;
     
+    	/* Don't use AudioConverter for merging channels. */
+    	if( hardwareStreamFormat.mChannelsPerFrame > userStreamFormat.mChannelsPerFrame )
+    	{
+    		hardwareStreamFormat.mChannelsPerFrame = userStreamFormat.mChannelsPerFrame;
+        	hardwareStreamFormat.mBytesPerFrame = userStreamFormat.mBytesPerFrame;
+        	hardwareStreamFormat.mBytesPerPacket = userStreamFormat.mBytesPerPacket;
+    	}
+    	
         if( isInput )
         {
             if( pahsc->input.converter != NULL )
