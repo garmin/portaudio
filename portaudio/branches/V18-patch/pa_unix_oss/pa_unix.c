@@ -68,11 +68,13 @@ Modification History
                       Check error return from read() and write().
                       Check CPU endianness instead of assuming Little Endian.
   20020621 - pa_unix_oss.c split into pa_unix.c, pa_unix.h, pa_unix_oss.c by
-  Augustus Saunders. Return values from usleep() ignored by Sam Bayer
-  because not cross-platform compatible (at least until we get configure
-  going). Pa_SetupDeviceFormat split into input and output sides to
-  reflect capabilities of Solaris.
-  
+         Augustus Saunders. Return values from usleep() ignored by Sam Bayer
+         because not cross-platform compatible (at least until we get configure
+         going). Pa_SetupDeviceFormat split into input and output sides to
+         reflect capabilities of Solaris.
+
+  20030206 - Martin Rohrbach - various mods for Solaris
+
 TODO
 O- put semaphore lock around shared data?
 O- handle native formats better
@@ -198,8 +200,91 @@ PaError Pa_QueryDevices( void )
         }
     }
 
-    return result;
+    /* I'm sitting at a SunRay1 and I neither have /dev/audio# nor /dev/dsp#.
+       Instead, the correct audio device is stored in the environment variable
+       AUDIODEV and/or UTAUDIODEV, so check these devices as well if we haven't
+       checked them yet above  - MR */
 
+    DBUG(("Checking for AUDIODEV and UTAUDIODEV\n"));
+    char *envdev = getenv("AUDIODEV");
+    if (envdev != NULL && !strstr(envdev, DEVICE_NAME_BASE)) {
+        result = paNoError;
+
+        /* Allocate structure to hold device info. */
+        pad = PaHost_AllocateFastMemory( sizeof(internalPortAudioDevice) );
+        if( pad == NULL ) return paInsufficientMemory;
+        memset( pad, 0, sizeof(internalPortAudioDevice) );
+
+        /* Build name for device. */
+        strcpy(pad->pad_DeviceName, envdev);
+
+        DBUG(("Try device %s\n", pad->pad_DeviceName ));
+        testResult = Pa_QueryDevice( pad->pad_DeviceName, pad );
+        DBUG(("Pa_QueryDevice returned %d\n", testResult ));
+        if( testResult != paNoError )
+        {
+            if( lastPad == NULL )
+            {
+                result = testResult; /* No good devices! */
+            }
+            PaHost_FreeFastMemory( pad, sizeof(internalPortAudioDevice) );
+        }
+        else
+        {
+            numDevices += 1;
+            /* Add to linked list of devices. */
+            if( lastPad )
+            {
+                lastPad->pad_Next = pad;
+            }
+            else
+            {
+                sDeviceList = pad; /* First element in linked list. */
+            }
+            lastPad = pad;
+        }
+    }
+
+    envdev = getenv("UTAUDIODEV");
+    if (envdev != NULL && !strstr(envdev, DEVICE_NAME_BASE) && getenv("AUDIODEV") != NULL && strcmp(envdev, getenv("AUDIODEV"))) {
+        result = paNoError;
+
+        /* Allocate structure to hold device info. */
+        pad = PaHost_AllocateFastMemory( sizeof(internalPortAudioDevice) );
+        if( pad == NULL ) return paInsufficientMemory;
+        memset( pad, 0, sizeof(internalPortAudioDevice) );
+
+        /* Build name for device. */
+        strcpy(pad->pad_DeviceName, envdev);
+
+        DBUG(("Try device %s\n", pad->pad_DeviceName ));
+        testResult = Pa_QueryDevice( pad->pad_DeviceName, pad );
+        DBUG(("Pa_QueryDevice returned %d\n", testResult ));
+        if( testResult != paNoError )
+        {
+            if( lastPad == NULL )
+            {
+                result = testResult; /* No good devices! */
+            }
+            PaHost_FreeFastMemory( pad, sizeof(internalPortAudioDevice) );
+        }
+        else
+        {
+            numDevices += 1;
+            /* Add to linked list of devices. */
+            if( lastPad )
+            {
+                lastPad->pad_Next = pad;
+            }
+            else
+            {
+                sDeviceList = pad; /* First element in linked list. */
+            }
+            lastPad = pad;
+        }
+    }
+
+    return result;
 }
 
 /*************************************************************************/
@@ -278,7 +363,7 @@ PaError PaHost_Init( void )
  * Runs at low priority so if audio thread runs wild, this thread will get starved
  * and the watchdog will detect it.
  */
- 
+
 #define SCHEDULER_POLICY         SCHED_RR
 #define WATCHDOG_MAX_SECONDS    (3)
 #define WATCHDOG_INTERVAL_USEC  (1000000)
@@ -297,7 +382,7 @@ static int PaHost_CanaryProc( PaHostSoundControl   *pahsc )
     }
 
     DBUG(("PaHost_CanaryProc: exiting.\n"));
-    
+
 #ifdef GNUSTEP
     GSUnregisterCurrentThread();  /* SB20010904 */
 #endif
@@ -310,7 +395,7 @@ static int PaHost_CanaryProc( PaHostSoundControl   *pahsc )
  * To prevent getting killed, the audio thread must update a
  * variable with a timer value.
  * If the value is not recent enough, then the
- * thread will get killed. 
+ * thread will get killed.
  */
 
 static PaError PaHost_WatchDogProc( PaHostSoundControl   *pahsc )
@@ -321,7 +406,7 @@ static PaError PaHost_WatchDogProc( PaHostSoundControl   *pahsc )
 #ifdef GNUSTEP
     GSRegisterCurrentThread(); /* SB20010904 */
 #endif
-    
+
 /* Run at a priority level above audio thread so we can still run if it hangs. */
 /* Rise more than 1 because of rumored off-by-one scheduler bugs. */
     schp.sched_priority = pahsc->pahsc_AudioPriority + 4;
@@ -333,12 +418,12 @@ static PaError PaHost_WatchDogProc( PaHostSoundControl   *pahsc )
         ERR_RPT(("PaHost_WatchDogProc: cannot set watch dog priority!\n"));
         goto killAudio;
     }
-    
+
     /* Compare watchdog time with audio and canary thread times. */
     /* Sleep for a while or until thread cancelled. */
     while( pahsc->pahsc_WatchDogRun )
     {
-      
+
         int              delta;
         struct timeval   currentTime;
 
@@ -352,7 +437,7 @@ static PaError PaHost_WatchDogProc( PaHostSoundControl   *pahsc )
         {
             goto killAudio;
         }
-        
+
         /* If canary died, then lower audio priority and halt canary. */
         delta = currentTime.tv_sec - pahsc->pahsc_CanaryTime.tv_sec;
         if( delta > WATCHDOG_MAX_SECONDS )
@@ -367,7 +452,7 @@ static PaError PaHost_WatchDogProc( PaHostSoundControl   *pahsc )
     GSUnregisterCurrentThread();  /* SB20010904 */
 #endif
     return 0;
-    
+
 lowerAudio:
     {
         struct sched_param    schat = { 0 };
@@ -382,7 +467,7 @@ lowerAudio:
             goto cleanup;
         }
     }
-    
+
 killAudio:
     ERR_RPT(("PaHost_WatchDogProc: killing hung audio thread!\n"));
     pthread_kill( pahsc->pahsc_AudioThread, SIGKILL );
@@ -395,7 +480,7 @@ cleanup:
     pthread_join( pahsc->pahsc_CanaryThread, NULL );
     DBUG(("PaHost_WatchDogProc: forget Canary\n"));
     pahsc->pahsc_CanaryThread = INVALID_THREAD;
-    
+
 #ifdef GNUSTEP
     GSUnregisterCurrentThread();  /* SB20010904 */
 #endif
@@ -404,7 +489,7 @@ cleanup:
 
 /*******************************************************************************************/
 static void PaHost_StopWatchDog( PaHostSoundControl   *pahsc )
-{    
+{
 /* Cancel WatchDog thread if there is one. */
     if( pahsc->pahsc_WatchDogThread != INVALID_THREAD )
     {
@@ -431,7 +516,7 @@ static PaError PaHost_StartWatchDog( PaHostSoundControl   *pahsc )
 {
     int      hres;
     PaError  result = 0;
-    
+
     /* The watch dog watches for these timer updates */
     gettimeofday( &pahsc->pahsc_EntryTime, NULL );
     gettimeofday( &pahsc->pahsc_CanaryTime, NULL );
@@ -462,7 +547,7 @@ static PaError PaHost_StartWatchDog( PaHostSoundControl   *pahsc )
         goto error;
     }
     return result;
-    
+
 error:
     PaHost_StopWatchDog( pahsc );
     return result;
@@ -477,13 +562,13 @@ static PaError PaHost_BoostPriority( internalPortAudioStream *past )
     PaHostSoundControl  *pahsc;
     PaError              result = paNoError;
     struct sched_param   schp = { 0 };
-    
+
     pahsc = (PaHostSoundControl *) past->past_DeviceData;
     if( pahsc == NULL ) return paInternalError;
-        
+
     pahsc->pahsc_AudioThreadPID = getpid();
     DBUG(("PaHost_BoostPriority: audio PID = %d\n", pahsc->pahsc_AudioThreadPID ));
-    
+
     /* Choose a priority in the middle of the range. */
     pahsc->pahsc_AudioPriority = (sched_get_priority_max(SCHEDULER_POLICY) -
                                   sched_get_priority_min(SCHEDULER_POLICY)) / 2;
@@ -495,11 +580,11 @@ static PaError PaHost_BoostPriority( internalPortAudioStream *past )
     }
     else
     {
-        DBUG(("PortAudio: audio callback priority set to level %d!\n", schp.sched_priority));        
+        DBUG(("PortAudio: audio callback priority set to level %d!\n", schp.sched_priority));
         /* We are running at high priority so we should have a watchdog in case audio goes wild. */
         result = PaHost_StartWatchDog( pahsc );
     }
-    
+
     return result;
 }
 
@@ -512,7 +597,7 @@ static PaError Pa_AudioThreadProc( internalPortAudioStream   *past )
 
     pahsc = (PaHostSoundControl *) past->past_DeviceData;
     if( pahsc == NULL ) return paInternalError;
-    
+
 #ifdef GNUSTEP
     GSRegisterCurrentThread(); /* SB20010904 */
 #endif
@@ -530,7 +615,7 @@ static PaError Pa_AudioThreadProc( internalPortAudioStream   *past )
         {
             int totalread = 0;
             DBUG(("Pa_AudioThreadProc: attempt to read %d bytes\n", pahsc->pahsc_BytesPerInputBuffer));
-            do 
+            do
             {
                 bytes_read = read(pahsc->pahsc_InputHandle,
                     (void *)pahsc->pahsc_NativeInputBuffer + totalread,
@@ -564,7 +649,7 @@ static PaError Pa_AudioThreadProc( internalPortAudioStream   *past )
         if( pahsc->pahsc_NativeOutputBuffer )
         {
             int totalwritten = 0;
-            do 
+            do
             {
                 bytes_written = write(pahsc->pahsc_OutputHandle,
                     (void *)pahsc->pahsc_NativeOutputBuffer,
@@ -582,10 +667,10 @@ static PaError Pa_AudioThreadProc( internalPortAudioStream   *past )
         Pa_UpdateStreamTime(pahsc);
     }
     DBUG(("Pa_AudioThreadProc: left audio loop.\n"));
-    
+
     past->past_IsActive = 0;
     PaHost_StopWatchDog( pahsc );
-    
+
 error:
     DBUG(("leaving audio thread.\n"));
 #ifdef GNUSTEP
@@ -751,7 +836,7 @@ PaError PaHost_OpenStream( internalPortAudioStream   *past )
             pad = Pa_GetInternalDevice( past->past_InputDeviceID );
             DBUG(("PaHost_OpenStream: attempt to open %s for O_RDONLY\n", pad->pad_DeviceName ));
             /* dmazzoni: test it first in nonblocking mode to
-               make sure the device is not busy */ 
+               make sure the device is not busy */
             pahsc->pahsc_InputHandle = open(pad->pad_DeviceName,O_RDONLY|O_NONBLOCK);
             if(pahsc->pahsc_InputHandle==-1)
             {
