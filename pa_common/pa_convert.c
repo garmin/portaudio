@@ -198,7 +198,7 @@ static void PaConvert_Float32_UInt8(
 	int i;
 	for( i=0; i<numSamples; i++ )
 	{
-        unsigned char samp = 128 + (unsigned char) (*sourceBuffer * (127.0));
+        unsigned char samp = (unsigned char)(128 + (*sourceBuffer * (127.0)));
         *targetBuffer = samp;
         sourceBuffer += sourceStride;
         targetBuffer += targetStride;
