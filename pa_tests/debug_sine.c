@@ -42,13 +42,17 @@
 #define NUM_SECONDS         (8)
 #define SLEEP_DUR           (800)
 #define SAMPLE_RATE         (44100)
-#define FRAMES_PER_BUFFER   (256)
+#define FRAMES_PER_BUFFER   (4096)
+
+#define MSEC_PER_BUFFER     (1000 * FRAMES_PER_BUFFER / SAMPLE_RATE)
+
 #if 0
 #define MIN_LATENCY_MSEC    (200)
 #define NUM_BUFFERS         ((MIN_LATENCY_MSEC * SAMPLE_RATE) / (FRAMES_PER_BUFFER * 1000))
 #else
 #define NUM_BUFFERS         (0)
 #endif
+
 #define MIN_FREQ            (100.0f)
 #define MAX_FREQ            (4000.0f)
 #define FREQ_SCALAR         (1.00002f)
@@ -126,6 +130,9 @@ static int patestCallback( void *inputBuffer, void *outputBuffer,
         *out++ = 0; /* left */
         *out++ = 0; /* right */
     }
+    // Pa_Sleep( 3 * MSEC_PER_BUFFER / 4 );
+    // Pa_Sleep( MSEC_PER_BUFFER / 3 );
+
     return finished;
 }
 /*******************************************************************/
@@ -138,6 +145,8 @@ int main(void)
     int i;
     int totalSamps;
     printf("PortAudio Test: output sine sweep. ask for %d buffers\n", NUM_BUFFERS );
+    printf("MSEC_PER_BUFFER = %d\n", MSEC_PER_BUFFER );
+
     /* initialise sinusoidal wavetable */
     for( i=0; i<TABLE_SIZE; i++ )
     {
