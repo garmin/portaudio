@@ -43,7 +43,7 @@
 #include <string.h>
 
 #define SAMPLE_RATE         (44100)
-#define NUM_SECONDS             (6)
+#define NUM_SECONDS            (15)
 #define SAMPLES_PER_FRAME       (2)
 
 #define FREQUENCY           (220.0f)
