@@ -97,6 +97,12 @@
               See code related to "streamInterleavingBuffer".
  03.06.2003 - Phil Burk and Ryan Francesconi - fixed numChannels query for MOTU828.
               Handle fact that MOTU828 gives you 8 channels even when you ask for 2!
+ 04.06.2003 - Phil Burk - Combine Dominic Mazzoni's technique of using Configuration to query maxChannels
+              with old technique of scanning for mormat.
+              Increase channel scan by 1 to handle mono USB microphones.
+              Do not merge or split channels in AudioConverter to handle 2+2 channels
+              of Quattro which has a format of 2 channels.
+ 04.07.2003 - Phil Burk - use AudioGetCurrentHostTime instead of getrusage() which can lock threads.
 */
 
 #include <CoreServices/CoreServices.h>
@@ -107,6 +113,7 @@
 #include <AudioUnit/AudioUnit.h>
 #include <AudioToolbox/DefaultAudioOutput.h>
 #include <AudioToolbox/AudioConverter.h>
+#include <CoreAudio/HostTime.h>
 
 #include "portaudio.h"
 #include "pa_host.h"
@@ -173,8 +180,8 @@ typedef struct PaHostSoundControl
     char              *ringBufferData;
     Boolean            formatListenerCalled;
     /* For measuring CPU utilization. */
-    struct rusage      entryRusage;
-    double             inverseMicrosPerHostBuffer; /* 1/Microseconds of real-time audio per user buffer. */
+    UInt64             entryTime;
+    double             inverseHostTicksPerBuffer; /* 1/Ticks of real-time audio per user buffer. */
 } PaHostSoundControl;
 
 /**************************************************************
@@ -289,15 +296,7 @@ static void Pa_StartUsageCalculation( internalPortAudioStream   *past )
     PaHostSoundControl *pahsc = (PaHostSoundControl *) past->past_DeviceData;
     if( pahsc == NULL ) return;
     /* Query user CPU timer for usage analysis and to prevent overuse of CPU. */
-    getrusage( RUSAGE_SELF, &pahsc->entryRusage );
-}
-
-static long SubtractTime_AminusB( struct timeval *timeA, struct timeval *timeB )
-{
-    long secs = timeA->tv_sec - timeB->tv_sec;
-    long usecs = secs * 1000000;
-    usecs += (timeA->tv_usec - timeB->tv_usec);
-    return usecs;
+    pahsc->entryTime = AudioGetCurrentHostTime();
 }
 
 /******************************************************************************
@@ -306,9 +305,9 @@ static long SubtractTime_AminusB( struct timeval *timeA, struct timeval *timeB )
 */
 static void Pa_EndUsageCalculation( internalPortAudioStream   *past )
 {
-    struct rusage currentRusage;
-    long  usecsElapsed;
-    double newUsage;
+    UInt64   exitTime;
+    UInt64   ticksElapsed;
+    double   newUsage;
     
 #define LOWPASS_COEFFICIENT_0   (0.95)
 #define LOWPASS_COEFFICIENT_1   (0.99999 - LOWPASS_COEFFICIENT_0)
@@ -316,16 +315,15 @@ static void Pa_EndUsageCalculation( internalPortAudioStream   *past )
     PaHostSoundControl *pahsc = (PaHostSoundControl *) past->past_DeviceData;
     if( pahsc == NULL ) return;
     
-    if( getrusage( RUSAGE_SELF, &currentRusage ) == 0 )
-    {
-        usecsElapsed = SubtractTime_AminusB( &currentRusage.ru_utime, &pahsc->entryRusage.ru_utime );
-        
-        /* Use inverse because it is faster than the divide. */
-        newUsage =  usecsElapsed * pahsc->inverseMicrosPerHostBuffer;
+    exitTime = AudioGetCurrentHostTime();
+    
+    ticksElapsed = exitTime - pahsc->entryTime;
 
-        past->past_Usage = (LOWPASS_COEFFICIENT_0 * past->past_Usage) +
+    /* Use inverse because it is faster than the divide. */
+	newUsage =  ticksElapsed * pahsc->inverseHostTicksPerBuffer;
+	/* Low pass filter result. */
+    past->past_Usage = (LOWPASS_COEFFICIENT_0 * past->past_Usage) +
                            (LOWPASS_COEFFICIENT_1 * newUsage);
-    }
 }
 /****************************************** END CPU UTILIZATION *******/
 
@@ -523,10 +521,61 @@ static int PaOSX_ScanDevices( Boolean isInput )
 }
 
 /*************************************************************************
-** Determine the maximum number of channels a device will support.
+** Determine the maximum number of channels based on the configuration.
 ** @return maxChannels or negative error.
 */
-static int PaOSX_GetMaxChannels( AudioDeviceID devID, Boolean isInput )
+static int PaOSX_GetMaxChannels_Config( AudioDeviceID devID, Boolean isInput )
+{
+    OSStatus         err;
+    UInt32           outSize;
+    Boolean          outWritable;
+    AudioBufferList *list;
+    int              numChannels;
+    int              i;
+
+    // Determine maximum number of channels supported.
+    // dmazzoni: new method
+
+    outSize = 0;
+    err = AudioDeviceGetPropertyInfo(devID, 0, isInput,
+                                     kAudioDevicePropertyStreamConfiguration,
+                                     &outSize, &outWritable);
+    if ( err != noErr )
+    {
+        PRINT_ERR("PaOSX_GetMaxChannels_Config: Could not get stream configuration info", err);
+        sSavedHostError = err;
+        return paHostError;
+    }
+
+    list = (AudioBufferList *)PaHost_AllocateFastMemory( outSize );
+    err = AudioDeviceGetProperty(devID, 0, isInput,
+                                 kAudioDevicePropertyStreamConfiguration,
+                                 &outSize, list);
+    if ( err != noErr )
+    {
+        PRINT_ERR("PaOSX_GetMaxChannels_Config: Could not get stream configuration", err);
+        sSavedHostError = err;
+        return paHostError;
+    }
+
+    numChannels = 0;
+    for( i=0; i<list->mNumberBuffers; i++ )
+    {
+        int bufChannels = list->mBuffers[i].mNumberChannels;
+        DBUG(("PaOSX_GetMaxChannels_Config: buffer %d has %d channels.\n", i, bufChannels ));
+        numChannels += bufChannels;
+    }
+    
+    PaHost_FreeFastMemory( list, outSize );
+
+    return numChannels;
+}
+
+/*************************************************************************
+** Determine the maximum number of channels a device will support based on scanning the format.
+** @return maxChannels or negative error.
+*/
+static int PaOSX_GetMaxChannels_Format( AudioDeviceID devID, Boolean isInput )
 {
     OSStatus         err;
     UInt32           outSize;
@@ -540,13 +589,14 @@ static int PaOSX_GetMaxChannels( AudioDeviceID devID, Boolean isInput )
     // For example, some 8 channel devices return 2 when given 256 as input.
     gotMax = false;
     maxChannels = 0;
+    numChannels = 0;
     while( !gotMax )
     {
     
         memset( &formatDesc, 0, sizeof(formatDesc));
-        numChannels = maxChannels + 2;
-        DBUG(("PaOSX_GetMaxChannels: try numChannels = %d = %d + 2\n",
-            numChannels, maxChannels ));
+        numChannels = numChannels + 1;
+        DBUG(("PaOSX_GetMaxChannels: try numChannels = %d = %d + 1\n",
+            numChannels, numChannels ));
         formatDesc.mChannelsPerFrame = numChannels;
         outSize = sizeof(formatDesc);
 
@@ -557,7 +607,10 @@ static int PaOSX_GetMaxChannels( AudioDeviceID devID, Boolean isInput )
             err, formatDesc.mChannelsPerFrame ));
         if( err != noErr )
         {
-			gotMax = true;
+            if (numChannels > (maxChannels + 4)) // Try several possibilities above current max
+			{
+                gotMax = true;
+            }
         }
         else
         {
@@ -568,7 +621,10 @@ static int PaOSX_GetMaxChannels( AudioDeviceID devID, Boolean isInput )
             }
             else if(formatDesc.mChannelsPerFrame < numChannels)
             {
-             	gotMax = true;
+                if (numChannels > (maxChannels + 4)) // Try several possibilities above current max
+                {
+                    gotMax = true;
+                }
             }
             else
             {
@@ -577,6 +633,24 @@ static int PaOSX_GetMaxChannels( AudioDeviceID devID, Boolean isInput )
         }
     }
     return maxChannels;
+}
+
+
+
+/*************************************************************************
+** Determine the maximum number of channels a device will support.
+** It is not clear at this point which the better technique so
+** we do both and use the biggest result.
+**
+** @return maxChannels or negative error.
+*/
+static int PaOSX_GetMaxChannels( AudioDeviceID devID, Boolean isInput )
+{
+    int maxChannelsFormat;
+    int maxChannelsConfig;
+    maxChannelsFormat = PaOSX_GetMaxChannels_Format( devID, isInput );
+    maxChannelsConfig = PaOSX_GetMaxChannels_Config( devID, isInput );
+    return (maxChannelsFormat > maxChannelsConfig) ? maxChannelsFormat : maxChannelsConfig;
 }
 
 /*************************************************************************
@@ -733,12 +807,18 @@ static OSStatus PaOSX_LoadAndProcess( internalPortAudioStream   *past,
             inputBuffer = pahsc->input.converterBuffer;
         }
         
+        /* Measure CPU load. */
+        Pa_StartUsageCalculation( past );
+
         /* Fill part of audio converter buffer by converting input to user format,
         * calling user callback, then converting output to native format. */
         if( PaConvert_Process( past, inputBuffer, outputBuffer ))
         {
             past->past_StopSoon = 1;
         }
+        
+        Pa_EndUsageCalculation( past );
+
     }
     return err;
 }
@@ -931,7 +1011,7 @@ static OSStatus PaOSX_HandleOutput( internalPortAudioStream   *past,
                 outputNativeBufferfPtr =  (void*)outOutputData->mBuffers[0].mData;
             }
     
-            /* Pull code from PA user through converter. */
+            /* Pull data from PA user through converter. */
             err = AudioConverterFillBuffer(
                 pahsc->output.converter,
                 PaOSX_OutputConverterCallbackProc,
@@ -962,11 +1042,14 @@ static OSStatus PaOSX_HandleOutput( internalPortAudioStream   *past,
                     for( j=0; j<numChannelsUsedInThisBuffer; j++ )
                     {
                         int k;
+                        float *dest = &((float *)outOutputData->mBuffers[i].mData)[ j ];
+                        float *src = &pahsc->output.streamInterleavingBuffer[ currentInterleavedChannelIndex ];
                         /* Move one channel from interleaved buffer to CoreAudio buffer. */
                         for( k=0; k<numFramesInOutputBuffer; k++ )
                         {
-                            ((float *)outOutputData->mBuffers[i].mData)[ k*numBufChannels + j ] =
-                                pahsc->output.streamInterleavingBuffer[ k*numInterleavedChannels + currentInterleavedChannelIndex ];
+                            *dest = *src;
+                            dest += numBufChannels;
+                            src += numInterleavedChannels;
                         }
                         currentInterleavedChannelIndex++;
                     }
@@ -1051,8 +1134,6 @@ static OSStatus PaOSX_CoreAudioIOCallback (AudioDeviceID  inDevice, const AudioT
             past->past_FrameCount = inInputTime->mSampleTime;
         }
         
-        /* Measure CPU load. */
-        Pa_StartUsageCalculation( past );
         past->past_NumCallbacks += 1;
         
         /* Process full input buffer. */
@@ -1062,8 +1143,6 @@ static OSStatus PaOSX_CoreAudioIOCallback (AudioDeviceID  inDevice, const AudioT
         /* Fill up empty output buffers. */
         err = PaOSX_HandleOutput( past, outOutputData );
         if( err != 0 ) goto error;
-        
-        Pa_EndUsageCalculation( past );
     }
 
     if( err != 0 ) DBUG(("PaOSX_CoreAudioIOCallback: returns %ld.\n", err ));
@@ -1198,7 +1277,7 @@ static void PaOSX_FixVolumeScalars( AudioDeviceID devID, Boolean isInput,
             kAudioDevicePropertyMute, &dataSize, &uidata32 );
         if( err == noErr )
         {
-            DBUG(("uidata32 for channel %d = %ld\n", iChannel, uidata32));
+            DBUG(("mute for channel %d = %ld\n", iChannel, uidata32));
             if( uidata32 == 1 ) // muted?
             {
                 dataSize = sizeof( uidata32 );
@@ -1304,22 +1383,13 @@ static OSStatus PAOSX_DevicePropertyListener (AudioDeviceID					inDevice,
     UInt32                    dataSize;
     OSStatus                  err = noErr;
 	AudioStreamBasicDescription userStreamFormat, hardwareStreamFormat;
-    Boolean                   updateInverseMicros;
-    Boolean                   updateConverter;
 
     past = (internalPortAudioStream *) inClientData;
     pahsc = (PaHostSoundControl *) past->past_DeviceData;
 
     DBUG(("PAOSX_DevicePropertyListener: called with propertyID = 0x%0X\n", (unsigned int) inPropertyID ));
 
-	updateInverseMicros = (inDevice == pahsc->primaryDeviceID) &&
-        ((inPropertyID == kAudioDevicePropertyStreamFormat) ||
-         (inPropertyID == kAudioDevicePropertyBufferFrameSize));
-         
-    updateConverter = (inPropertyID == kAudioDevicePropertyStreamFormat);
-
-    // Sample rate needed for both.
-    if( updateConverter || updateInverseMicros )
+    if(inPropertyID == kAudioDevicePropertyStreamFormat)
     {    
             
         /* Get target device format */
@@ -1332,10 +1402,7 @@ static OSStatus PAOSX_DevicePropertyListener (AudioDeviceID					inDevice,
             sSavedHostError = err;
             goto error;
         }
-    }
-    
-    if( updateConverter )
-    {
+
         DBUG(("PAOSX_DevicePropertyListener: HW rate = %f\n", hardwareStreamFormat.mSampleRate ));
         DBUG(("PAOSX_DevicePropertyListener: user rate = %f\n", past->past_SampleRate ));
         DBUG(("PAOSX_DevicePropertyListener: HW mChannelsPerFrame = %d\n", (int)hardwareStreamFormat.mChannelsPerFrame ));
@@ -1349,13 +1416,10 @@ static OSStatus PAOSX_DevicePropertyListener (AudioDeviceID					inDevice,
         userStreamFormat.mBytesPerFrame = userStreamFormat.mChannelsPerFrame * sizeof(float);
         userStreamFormat.mBytesPerPacket = userStreamFormat.mBytesPerFrame * userStreamFormat.mFramesPerPacket;
     
-    	/* Don't use AudioConverter for merging channels. */
-    	if( hardwareStreamFormat.mChannelsPerFrame > userStreamFormat.mChannelsPerFrame )
-    	{
-    		hardwareStreamFormat.mChannelsPerFrame = userStreamFormat.mChannelsPerFrame;
-        	hardwareStreamFormat.mBytesPerFrame = userStreamFormat.mBytesPerFrame;
-        	hardwareStreamFormat.mBytesPerPacket = userStreamFormat.mBytesPerPacket;
-    	}
+    	/* Don't use AudioConverter for merging or splitting channels. */
+        hardwareStreamFormat.mChannelsPerFrame = userStreamFormat.mChannelsPerFrame;
+        hardwareStreamFormat.mBytesPerFrame = userStreamFormat.mBytesPerFrame;
+        hardwareStreamFormat.mBytesPerPacket = userStreamFormat.mBytesPerPacket;
     	
         if( isInput )
         {
@@ -1397,21 +1461,6 @@ static OSStatus PAOSX_DevicePropertyListener (AudioDeviceID					inDevice,
         }
     }
     
-    if( updateInverseMicros )
-    {
-        // Update coefficient used to calculate CPU Load based on sampleRate and bufferSize.
-        UInt32 ioBufferSize;
-        dataSize = sizeof(ioBufferSize);
-        err = AudioDeviceGetProperty( inDevice, 0, isInput,
-                        kAudioDevicePropertyBufferFrameSize, &dataSize,
-                        &ioBufferSize);
-        if( err == noErr )
-        {
-            pahsc->inverseMicrosPerHostBuffer = hardwareStreamFormat.mSampleRate /
-                (1000000.0 * ioBufferSize);
-        }
-    }
-
 error:
     pahsc->formatListenerCalled = true;
     return err;
@@ -1764,6 +1813,10 @@ PaError PaHost_OpenStream( internalPortAudioStream   *past )
         result = PaOSX_OpenInputDevice( past );
         if( result < 0 ) goto error;
     }
+    
+    pahsc->inverseHostTicksPerBuffer = past->past_SampleRate /
+        (AudioGetHostClockFrequency() * past->past_FramesPerUserBuffer);
+        DBUG(("inverseHostTicksPerBuffer based on buffer size of %d frames.\n", past->past_FramesPerUserBuffer ));
 
     return result;
 
