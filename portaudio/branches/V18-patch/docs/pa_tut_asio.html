@@ -21,6 +21,11 @@ PortAudio Tutorial</h1></center>
 </table></center>
 
 <h2>
+<font size=+2><a href="http://www.portaudio.com/">home</a> |
+<a href="pa_tutorial.html">contents</a>
+| <a href="pa_tut_over.html">previous</a> |&nbsp; <a href="pa_tut_callback.html">next</a></font></h2>
+
+<h2>
 Compiling for ASIO (Windows or Macintosh)</h2>
 
 <blockquote>ASIO is a low latency audio API from Steinberg. To compile
@@ -31,9 +36,9 @@ the manufacturer of your audio hardware.
 '/' with ':'. On Windows, replace '/' with '\'.
 <p>Several files are common to all PortAudio implementations. Add the following
 source files to your project:
-<blockquote>pa_common/pa_lib.c<br>
-pa_common/portaudio.h<br>
-pa_common/pa_host.h</blockquote>
+<blockquote>pa_common/pa_lib.c
+<br>pa_common/portaudio.h
+<br>pa_common/pa_host.h</blockquote>
 To use ASIO with the PortAudio library add the following:
 <blockquote>
 <pre>pa_asio/pa_asio.cpp</pre>
@@ -50,6 +55,24 @@ and add these directories to the path for include files
 asiosdk2/common
 asiosdk2/host</pre>
 </blockquote>
+also link with the system library "<b>winmm.lib</b>". For Visual C++:
+<ul>
+<li>
+select "Settings..." from the "Project" menu,</li>
+
+<li>
+select the project name in the tree on the left,</li>
+
+<li>
+choose "All Configurations" in the popup menu above the tree,</li>
+
+<li>
+select the "Link" tab,</li>
+
+<li>
+enter "winmm.lib", without quotes, as the first item in the "Object/library
+modules:" field.</li>
+</ul>
 You may try compiling the "pa_tests/patest_saw.c" file first because it
 is the simplest.</blockquote>
 <font size=+2><a href="http://www.portaudio.com/">home</a> |
