@@ -36,6 +36,7 @@
 
 /* History:
  * PLB021214 - check for valid stream in CloseAudioStream() to prevent hang.
+ *             add timeOutMSec to CloseAudioStream() to prevent hang.
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -291,14 +292,15 @@ PaError CloseAudioStream( PABLIO_Stream *aStream )
         /* If we are writing data, make sure we play everything written. */
         if( byteSize > 0 )
         {
+            int timeOutMSec = 2000;
             bytesEmpty = RingBuffer_GetWriteAvailable( &aStream->outFIFO );
-            while( bytesEmpty < byteSize )
+            while( (bytesEmpty < byteSize) && (timeOutMSec > 0) )
             {
-                Pa_Sleep( 10 );
+                Pa_Sleep( 20 );
+                timeOutMSec -= 20;
                 bytesEmpty = RingBuffer_GetWriteAvailable( &aStream->outFIFO );
             }
         }
-
         err = Pa_StopStream( aStream->stream );
         if( err != paNoError ) goto error;
         err = Pa_CloseStream( aStream->stream );
