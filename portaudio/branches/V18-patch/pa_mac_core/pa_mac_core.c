@@ -93,7 +93,6 @@
               Synchronize with device when format changes.
 
 TODO:
-O- add support for paInt32 format
 */
 
 #include <CoreServices/CoreServices.h>
@@ -863,7 +862,6 @@ static OSStatus PaOSX_CoreAudioIOCallback (AudioDeviceID  inDevice, const AudioT
         Pa_EndUsageCalculation( past );
     }
 
-    // FIXME PaOSX_UpdateStreamTime( pahsc );
     if( err != 0 ) DBUG(("PaOSX_CoreAudioIOCallback: returns %ld.\n", err ));
 
     return err;
@@ -1207,7 +1205,7 @@ error:
 /* Allocate FIFO between Device callback and Converter callback so that device can push data
 * and converter can pull data.
 */
-static PaError PaOSX_CreateInputRingBuffer( internalPortAudioStream   *past, Float32 deviceRate )
+static PaError PaOSX_CreateInputRingBuffer( internalPortAudioStream   *past )
 {
     PaHostSoundControl *pahsc = (PaHostSoundControl *) past->past_DeviceData;
     OSStatus  err = noErr;
@@ -1217,9 +1215,20 @@ static PaError PaOSX_CreateInputRingBuffer( internalPortAudioStream   *past, Flo
     UInt32    framesPerHostBuffer;
     UInt32    bytesForDevice;
     UInt32    bytesForUser;
+    AudioStreamBasicDescription formatDesc;
+    
+    dataSize = sizeof(formatDesc);
+    err = AudioDeviceGetProperty( pahsc->input.audioDeviceID, 0, IS_INPUT,
+        kAudioDevicePropertyStreamFormat, &dataSize, &formatDesc);
+    if( err != noErr )
+    {
+        PRINT_ERR("PaOSX_CreateInputRingBuffer: Could not get I/O buffer size.\n", err);
+        sSavedHostError = err;
+        return paHostError;
+    }
 
     // If device is delivering audio faster than being consumed then buffer must be bigger.
-    sampleRateRatio = deviceRate / past->past_SampleRate;
+    sampleRateRatio = formatDesc.mSampleRate / past->past_SampleRate;
     
     // Get size of CoreAudio IO buffers.
     dataSize = sizeof(framesPerHostBuffer);
@@ -1233,7 +1242,7 @@ static PaError PaOSX_CreateInputRingBuffer( internalPortAudioStream   *past, Flo
         return paHostError;
     }
     
-    bytesForDevice = framesPerHostBuffer * past->past_NumInputChannels * sizeof(Float32) * 2;
+    bytesForDevice = framesPerHostBuffer * formatDesc.mChannelsPerFrame * sizeof(Float32) * 2;
     
     bytesForUser = past->past_FramesPerUserBuffer * past->past_NumInputChannels *
         sizeof(Float32) * 3 * sampleRateRatio;
@@ -1341,13 +1350,13 @@ static PaError PaOSX_OpenCommonDevice( internalPortAudioStream   *past,
         result = 0;
     }
     
-    deviceRate = PaOSX_GetDeviceSampleRate( inOut->audioDeviceID, isInput );
-    if( deviceRate <= 0.0 ) deviceRate =  past->past_SampleRate;
-
 #if SET_DEVICE_BUFFER_SIZE
     // Try to set the I/O bufferSize of the device.
     {
-        Float64   ratio = deviceRate / past->past_SampleRate ;
+        Float64   ratio;
+        deviceRate = PaOSX_GetDeviceSampleRate( inOut->audioDeviceID, isInput );
+        if( deviceRate <= 0.0 ) deviceRate =  past->past_SampleRate;
+        ratio = deviceRate / past->past_SampleRate ;
         err = PaOSX_SetDeviceBufferSize( inOut->audioDeviceID, isInput,
             past->past_FramesPerUserBuffer, ratio );
         if( err != noErr )
@@ -1373,7 +1382,6 @@ static PaError PaOSX_OpenInputDevice( internalPortAudioStream   *past )
     PaHostSoundControl *pahsc = (PaHostSoundControl *) past->past_DeviceData;
     const PaHostDeviceInfo *hostDeviceInfo;
     PaError          result = paNoError;
-    Float64          deviceRate;
         
     DBUG(("PaOSX_OpenInputDevice: -------------\n"));
     
@@ -1397,7 +1405,7 @@ static PaError PaOSX_OpenInputDevice( internalPortAudioStream   *past )
     if( result != paNoError ) goto error;
     
     // Allocate a ring buffer so we can push in data from device, and pull through AudioConverter.
-    result = PaOSX_CreateInputRingBuffer( past, deviceRate );
+    result = PaOSX_CreateInputRingBuffer( past );
     if( result != paNoError ) goto error;
             
 error:
@@ -1687,6 +1695,20 @@ PaError PaHost_CloseStream( internalPortAudioStream   *past )
 #if PA_TRACE_START_STOP
     AddTraceMessage( "PaHost_CloseStream: pahsc_HWaveOut ", (int) pahsc->pahsc_HWaveOut );
 #endif
+    // Stop Listener callbacks ASAP before dismantling stream.
+    if( PA_USING_INPUT )
+    {
+        AudioDeviceRemovePropertyListener( pahsc->input.audioDeviceID, 0, IS_INPUT,
+            kAudioDevicePropertyStreamFormat,
+            (AudioDevicePropertyListenerProc) PAOSX_DevicePropertyListener );
+    }
+
+    if( PA_USING_OUTPUT )
+    {
+        AudioDeviceRemovePropertyListener( pahsc->output.audioDeviceID, 0, IS_OUTPUT,
+            kAudioDevicePropertyStreamFormat,
+            (AudioDevicePropertyListenerProc) PAOSX_DevicePropertyListener );
+    }
 
     if( pahsc->output.converterBuffer != NULL )
     {
