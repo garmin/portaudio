@@ -4,11 +4,11 @@ LIBS =  -lm -lpthread
 
 CDEFINES = -I../pa_common
 CFLAGS = -g -Wall
-PASRC = ../pa_common/pa_lib.c pa_unix_oss.c
+PASRC = ../pa_common/pa_lib.c pa_unix_oss.c pa_unix.c
 PAINC = ../pa_common/portaudio.h
 
 # Tests that work.
-TESTC   = $(PASRC) ../pa_tests/patest_sine.c
+#TESTC   = $(PASRC) ../pa_tests/patest_sine.c
 #TESTC   = $(PASRC) ../pa_tests/patest_longsine.c
 #TESTC   = $(PASRC) ../pa_tests/patest_sine_time.c
 #TESTC   = $(PASRC) ../pa_tests/patest_maxsines.c
@@ -20,7 +20,7 @@ TESTC   = $(PASRC) ../pa_tests/patest_sine.c
 #TESTC   = $(PASRC) ../pa_tests/patest_leftright.c
 #TESTC   = $(PASRC) ../pa_tests/patest_clip.c
 #TESTC   = $(PASRC) ../pa_tests/patest_dither.c
-#TESTC   = $(PASRC) ../pa_tests/pa_devs.c
+TESTC   = $(PASRC) ../pa_tests/pa_devs.c
 #TESTC   = $(PASRC) ../pa_tests/patest_many.c
 #TESTC   = $(PASRC) ../pa_tests/patest_record.c
 #TESTC   = $(PASRC) ../pa_tests/pa_fuzz.c
