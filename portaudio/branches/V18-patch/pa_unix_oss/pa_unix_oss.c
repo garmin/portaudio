@@ -32,8 +32,11 @@
 
 /* Modification history:
    20020621: pa_unix_oss.c split into pa_unix.c, pa_unix.h, pa_unix_oss.c by
-   Augustus Saunders. See pa_unix.c for previous history. Pa_FlushStream
-   added by Augustus Saunders for Solaris compatibility. */
+       Augustus Saunders. See pa_unix.c for previous history. Pa_FlushStream
+       added by Augustus Saunders for Solaris compatibility.
+   PLB20021018 - Fill device info table with actual sample rates instead of wished for rates.
+               - Allow stream to open if sample rate within 10% of desired rate.
+*/
 
 #include "pa_unix.h"
 
@@ -74,12 +77,13 @@ PaError Pa_QueryDevice( const char *deviceName, internalPortAudioDevice *pad )
     int numSampleRates;
     int sampleRate;
     int numRatesToTry;
+    int lastRate;
     int ratesToTry[9] = {96000, 48000, 44100, 32000, 24000, 22050, 16000, 11025, 8000};
     int i;
 
     /* douglas:
      we have to do this querying in a slightly different order. apparently
-     some sound cards will give you different info based on their settins. 
+     some sound cards will give you different info based on their settings. 
      e.g. a card might give you stereo at 22kHz but only mono at 44kHz.
      the correct order for OSS is: format, channels, sample rate
      
@@ -164,9 +168,10 @@ PaError Pa_QueryDevice( const char *deviceName, internalPortAudioDevice *pad )
 
 
     /* Determine available sample rates by trying each one and seeing result.
+     * OSS often supports funky rates such as 44188 instead of 44100!
      */
     numSampleRates = 0;
-
+    lastRate = 0;
     numRatesToTry = sizeof(ratesToTry)/sizeof(int);
     for (i = 0; i < numRatesToTry; i++)
     {
@@ -174,11 +179,17 @@ PaError Pa_QueryDevice( const char *deviceName, internalPortAudioDevice *pad )
 
         if (ioctl(tempDevHandle, SNDCTL_DSP_SPEED, &sampleRate) >= 0 ) /* PLB20010817 */
         {
-            if (sampleRate == ratesToTry[i])
+            /* Use whatever rate OSS tells us. PLB20021018 */
+            if (sampleRate != lastRate)
             {
-                DBUG(("Pa_QueryDevice: got sample rate: %d\n", sampleRate))
-                pad->pad_SampleRates[numSampleRates] = (float)ratesToTry[i];
+                DBUG(("Pa_QueryDevice: adding sample rate: %d\n", sampleRate))
+                pad->pad_SampleRates[numSampleRates] = (float)sampleRate;
                 numSampleRates++;
+                lastRate = sampleRate;
+            }
+            else
+            {
+                DBUG(("Pa_QueryDevice: dang - got sample rate %d again!\n", sampleRate))
             }
         }
     }
@@ -186,12 +197,13 @@ PaError Pa_QueryDevice( const char *deviceName, internalPortAudioDevice *pad )
     DBUG(("Pa_QueryDevice: final numSampleRates = %d\n", numSampleRates))
     if (numSampleRates==0)   /* HP20010922 */
     {
-        ERR_RPT(("Pa_QueryDevice: no supported sample rate (or SNDCTL_DSP_SPEED ioctl call failed).\n" ));
-        goto error;
+        /* Desparate attempt to keep running even though no good rates found! */
+        ERR_RPT(("Pa_QueryDevice: no supported sample rate (or SNDCTL_DSP_SPEED ioctl call failed). Force 44100 Hz\n" ));
+        pad->pad_SampleRates[numSampleRates++] = 44100;
     }
 
     pad->pad_Info.numSampleRates = numSampleRates;
-    pad->pad_Info.sampleRates = pad->pad_SampleRates;
+    pad->pad_Info.sampleRates = pad->pad_SampleRates; /* use pointer to embedded array */
 
     pad->pad_Info.name = deviceName;
 
@@ -238,19 +250,28 @@ PaError Pa_SetupDeviceFormat( int devHandle, int numChannels, int sampleRate )
         return paHostError;
     }
 
-    /* Set playing frequency. 44100, 22050 and 11025 are safe bets. */
+    /* Set playing frequency. */
     tmp = sampleRate;
     if( ioctl(devHandle,SNDCTL_DSP_SPEED,&tmp) == -1)
     {
         ERR_RPT(("Pa_SetupDeviceFormat: could not SNDCTL_DSP_SPEED\n" ));
         return paHostError;
     }
-    if( tmp != sampleRate)
+    else if( tmp != sampleRate )
     {
-        ERR_RPT(("Pa_SetupDeviceFormat: HW does not support %d Hz sample rate\n",sampleRate ));
-        return paHostError;
+        int percentError = abs( (100 * (sampleRate - tmp)) / sampleRate );
+        PRINT(("Pa_SetupDeviceFormat: warning - requested sample rate = %d Hz - closest = %d\n",
+            sampleRate, tmp ));
+        /* Allow sample rate within 10% off of requested rate. PLB20021018
+        * Sometimes OSS uses a funky rate like 44188 instead of 44100.
+        */
+        if( percentError > 10 )
+        {
+            ERR_RPT(("Pa_SetupDeviceFormat: HW does not support %d Hz sample rate\n",sampleRate ));
+           return paHostError;
+        }
     }
-
+    
     return result;
 }
 
