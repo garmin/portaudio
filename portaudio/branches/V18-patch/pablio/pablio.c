@@ -228,6 +228,18 @@ PaError OpenAudioStream( PABLIO_Stream **rwblPtr, double sampleRate,
      */
     minNumBuffers = 2 * Pa_GetMinNumBuffers( FRAMES_PER_BUFFER, sampleRate );
     numFrames = minNumBuffers * FRAMES_PER_BUFFER;
+    /* The PortAudio callback runs in a high priority thread. But PABLIO
+     * runs in a normal foreground thread. So we may have much worse
+     * latency in PABLIO. So adjust latency to a safe level.
+     */
+    {
+        const int safeLatencyMSec = 200;
+        int minLatencyMSec = (1000 * numFrames) / sampleRate;
+        if( minLatencyMSec < safeLatencyMSec )
+        {
+            numFrames = (int) ((safeLatencyMSec * sampleRate) / 1000);
+        }
+    }
     numFrames = RoundUpToNextPowerOf2( numFrames );
 
     /* Initialize Ring Buffers */
