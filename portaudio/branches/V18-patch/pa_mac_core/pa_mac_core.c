@@ -106,6 +106,8 @@
  04.10.2003 - Phil Burk - fixed pointer bug with input deinterleaving loop.
               Detect and ignore NULL inputData and outputData in CodeAudio callback.
               Overlap creation and deletion of AudioConverters to prevent thread death when device rate changes.
+ 04.16.2003 - Phil Burk - Fixed input channel scrambling when numChannels != 2^N. Caused by alignment
+              error when filling RingBuffer with 2^N zero bytes.
 */
 
 #include <CoreServices/CoreServices.h>
