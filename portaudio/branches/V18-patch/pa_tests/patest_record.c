@@ -40,14 +40,15 @@
 #include "portaudio.h"
 
 /* #define SAMPLE_RATE  (17932) /* Test failure to open with this value. */
-#define SAMPLE_RATE  (44100)
+#define SAMPLE_RATE  (22050)
 #define NUM_SECONDS     (5)
 #define NUM_CHANNELS    (2)
 /* #define DITHER_FLAG     (paDitherOff)  /**/
 #define DITHER_FLAG     (0) /**/
+#define FRAMES_PER_BUFFER  (1024)
 
 /* Select sample format. */
-#if 0
+#if 1
 #define PA_SAMPLE_TYPE  paFloat32
 typedef float SAMPLE;
 #define SAMPLE_SILENCE  (0.0f)
@@ -210,7 +211,7 @@ int main(void)
               PA_SAMPLE_TYPE,
               NULL,
               SAMPLE_RATE,
-              1024,            /* frames per buffer */
+              FRAMES_PER_BUFFER,            /* frames per buffer */
               0,               /* number of buffers, if zero then use default minimum */
               0, //paDitherOff,    /* flags */
               recordCallback,
@@ -289,7 +290,7 @@ int main(void)
               PA_SAMPLE_TYPE,
               NULL,
               SAMPLE_RATE,
-              1024,            /* frames per buffer */
+              FRAMES_PER_BUFFER,            /* frames per buffer */
               0,               /* number of buffers, if zero then use default minimum */
               paClipOff,       /* we won't output out of range samples so don't bother clipping them */
               playCallback,

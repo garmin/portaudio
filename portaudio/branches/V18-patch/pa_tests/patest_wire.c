@@ -40,13 +40,18 @@
 #include <stdio.h>
 #include <math.h>
 #include "portaudio.h"
+
+#define INPUT_DEVICE  Pa_GetDefaultInputDeviceID()
+#define OUTPUT_DEVICE Pa_GetDefaultOutputDeviceID()
+
 /*
 ** Note that many of the older ISA sound cards on PCs do NOT support
 ** full duplex audio (simultaneous record and playback).
 ** And some only support full duplex at lower sample rates.
 */
-#define SAMPLE_RATE  (44100)
+#define SAMPLE_RATE  (32767)
 #define FRAMES_PER_BUFFER  (64)
+
 #if 1
 #define PA_SAMPLE_TYPE  paFloat32
 typedef float SAMPLE;
@@ -91,6 +96,8 @@ static int wireCallback( void *inputBuffer, void *outputBuffer,
 
     return 0;
 }
+
+
 /*******************************************************************/
 int main(void);
 int main(void)
@@ -101,15 +108,15 @@ int main(void)
     err = Pa_Initialize();
     if( err != paNoError ) goto error;
     
-    printf("PortAudio Test: input device ID  = %d\n", Pa_GetDefaultInputDeviceID() );
-    printf("PortAudio Test: output device ID = %d\n", Pa_GetDefaultOutputDeviceID() );
+    printf("PortAudio Test: input device ID  = %d\n", INPUT_DEVICE );
+    printf("PortAudio Test: output device ID = %d\n", OUTPUT_DEVICE );
     err = Pa_OpenStream(
               &stream,
-              Pa_GetDefaultInputDeviceID(), /* default output device */
+              INPUT_DEVICE,
               2,               /* stereo input */
               PA_SAMPLE_TYPE,
               NULL,
-              Pa_GetDefaultOutputDeviceID(), /* default output device */
+              OUTPUT_DEVICE,
               2,               /* stereo output */
               PA_SAMPLE_TYPE,
               NULL,

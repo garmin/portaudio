@@ -1,9 +1,9 @@
 /*
  * $Id$
- * debug_record.c
+ * patest_record.c
  * Record input into an array.
  * Save array to a file.
- * Based on patest_record.c but with various ugly debug hacks thrown in.
+ * Playback recorded data.
  *
  * Author: Phil Burk  http://www.softsynth.com
  *
@@ -37,28 +37,39 @@
  */
 #include <stdio.h>
 #include <stdlib.h>
-#include <memory.h>
 #include "portaudio.h"
-#define SAMPLE_RATE     (22050)
-#define NUM_SECONDS     (10)
-#define SLEEP_DUR_MSEC  (200)
-#define FRAMES_PER_BUFFER  (1<<10)
-#define NUM_REC_BUFS    (0)
 
+#define SAMPLE_RATE      (22050)
+#define NUM_SECONDS          (6)
+#define NUM_CHANNELS         (2)
+#define FRAMES_PER_BUFFER  (64)
+/* #define DITHER_FLAG     (paDitherOff) */
+#define DITHER_FLAG          (0)
+
+/* Select sample format. */
 #if 1
 #define PA_SAMPLE_TYPE  paFloat32
 typedef float SAMPLE;
-#else
+#define SAMPLE_SILENCE  (0.0f)
+#elif 0
 #define PA_SAMPLE_TYPE  paInt16
 typedef short SAMPLE;
+#define SAMPLE_SILENCE  (0)
+#elif 0
+#define PA_SAMPLE_TYPE  paInt8
+typedef char SAMPLE;
+#define SAMPLE_SILENCE  (0)
+#else
+#define PA_SAMPLE_TYPE  paUInt8
+typedef unsigned char SAMPLE;
+#define SAMPLE_SILENCE  (128)
+
 #endif
 
 typedef struct
 {
-    long         frameIndex;  /* Index into sample array. */
-    long         maxFrameIndex;
-    long         samplesPerFrame;
-    long         numSamples;
+    int          frameIndex;  /* Index into sample array. */
+    int          maxFrameIndex;
     SAMPLE      *recordedSamples;
 }
 paTestData;
@@ -72,9 +83,9 @@ static int recordCallback( void *inputBuffer, void *outputBuffer,
 {
     paTestData *data = (paTestData*)userData;
     SAMPLE *rptr = (SAMPLE*)inputBuffer;
-    SAMPLE *wptr = &data->recordedSamples[data->frameIndex * data->samplesPerFrame];
+    SAMPLE *wptr = &data->recordedSamples[data->frameIndex * NUM_CHANNELS];
     long framesToCalc;
-    unsigned long i;
+    long i;
     int finished;
     unsigned long framesLeft = data->maxFrameIndex - data->frameIndex;
 
@@ -95,8 +106,8 @@ static int recordCallback( void *inputBuffer, void *outputBuffer,
     {
         for( i=0; i<framesToCalc; i++ )
         {
-            *wptr++ = 0;  /* left */
-            *wptr++ = 0;  /* right */
+            *wptr++ = SAMPLE_SILENCE;  /* left */
+            if( NUM_CHANNELS == 2 ) *wptr++ = SAMPLE_SILENCE;  /* right */
         }
     }
     else
@@ -104,12 +115,13 @@ static int recordCallback( void *inputBuffer, void *outputBuffer,
         for( i=0; i<framesToCalc; i++ )
         {
             *wptr++ = *rptr++;  /* left */
-            *wptr++ = *rptr++;  /* right */
+            if( NUM_CHANNELS == 2 ) *wptr++ = *rptr++;  /* right */
         }
     }
     data->frameIndex += framesToCalc;
     return finished;
 }
+
 /* This routine will be called by the PortAudio engine when audio is needed.
 ** It may be called at interrupt level on some machines so don't do anything
 ** that could mess up the system like calling malloc() or free().
@@ -119,12 +131,11 @@ static int playCallback( void *inputBuffer, void *outputBuffer,
                          PaTimestamp outTime, void *userData )
 {
     paTestData *data = (paTestData*)userData;
-    SAMPLE *rptr = &data->recordedSamples[data->frameIndex * data->samplesPerFrame];
+    SAMPLE *rptr = &data->recordedSamples[data->frameIndex * NUM_CHANNELS];
     SAMPLE *wptr = (SAMPLE*)outputBuffer;
-    unsigned long i;
+    unsigned int i;
     int finished;
     unsigned int framesLeft = data->maxFrameIndex - data->frameIndex;
-    if( outputBuffer == NULL ) return 0;
     (void) inputBuffer; /* Prevent unused variable warnings. */
     (void) outTime;
 
@@ -134,12 +145,12 @@ static int playCallback( void *inputBuffer, void *outputBuffer,
         for( i=0; i<framesLeft; i++ )
         {
             *wptr++ = *rptr++;  /* left */
-            *wptr++ = *rptr++;  /* right */
+            if( NUM_CHANNELS == 2 ) *wptr++ = *rptr++;  /* right */
         }
         for( ; i<framesPerBuffer; i++ )
         {
             *wptr++ = 0;  /* left */
-            *wptr++ = 0;  /* right */
+            if( NUM_CHANNELS == 2 ) *wptr++ = 0;  /* right */
         }
         data->frameIndex += framesLeft;
         finished = 1;
@@ -149,7 +160,7 @@ static int playCallback( void *inputBuffer, void *outputBuffer,
         for( i=0; i<framesPerBuffer; i++ )
         {
             *wptr++ = *rptr++;  /* left */
-            *wptr++ = *rptr++;  /* right */
+            if( NUM_CHANNELS == 2 ) *wptr++ = *rptr++;  /* right */
         }
         data->frameIndex += framesPerBuffer;
         finished = 0;
@@ -157,18 +168,41 @@ static int playCallback( void *inputBuffer, void *outputBuffer,
     return finished;
 }
 
-/****************************************************************/
-PaError TestRecording( paTestData *dataPtr )
+/*******************************************************************/
+int main(void);
+int main(void)
 {
     PortAudioStream *stream;
     PaError    err;
+    paTestData data;
     int        i;
+    int        totalFrames;
+    int        numSamples;
+    int        numBytes;
+    SAMPLE     max, average, val;
+    printf("debug_record.c, sample rate = %d\n", SAMPLE_RATE ); fflush(stdout);
 
-    /* Record some audio. */
+    data.maxFrameIndex = totalFrames = NUM_SECONDS * SAMPLE_RATE; /* Record for a few seconds. */
+    data.frameIndex = 0;
+    numSamples = totalFrames * NUM_CHANNELS;
+
+    numBytes = numSamples * sizeof(SAMPLE);
+    data.recordedSamples = (SAMPLE *) malloc( numBytes );
+    if( data.recordedSamples == NULL )
+    {
+        printf("Could not allocate record array.\n");
+        exit(1);
+    }
+    for( i=0; i<numSamples; i++ ) data.recordedSamples[i] = 0;
+
+    err = Pa_Initialize();
+    if( err != paNoError ) goto error;
+
+    /* Record some audio. -------------------------------------------- */
     err = Pa_OpenStream(
               &stream,
               Pa_GetDefaultInputDeviceID(),
-              dataPtr->samplesPerFrame,               /* stereo input */
+              NUM_CHANNELS,               /* stereo input */
               PA_SAMPLE_TYPE,
               NULL,
               paNoDevice,
@@ -177,49 +211,52 @@ PaError TestRecording( paTestData *dataPtr )
               NULL,
               SAMPLE_RATE,
               FRAMES_PER_BUFFER,            /* frames per buffer */
-              NUM_REC_BUFS,               /* number of buffers, if zero then use default minimum */
-              paClipOff,       /* we won't output out of range samples so don't bother clipping them */
+              0,               /* number of buffers, if zero then use default minimum */
+              0, //paDitherOff,    /* flags */
               recordCallback,
-              dataPtr );
+              &data );
     if( err != paNoError ) goto error;
+
     err = Pa_StartStream( stream );
     if( err != paNoError ) goto error;
+    printf("Start recording!!\n"); fflush(stdout);
 
-    printf("Now recording!\n"); fflush(stdout);
-    for( i=0; i<(NUM_SECONDS*1000/SLEEP_DUR_MSEC); i++ )
+    while( Pa_StreamActive( stream ) )
     {
-        if( Pa_StreamActive( stream ) <= 0)
-        {
-            printf("Stream inactive!\n");
-            break;
-        }
-        if( dataPtr->maxFrameIndex <= dataPtr->frameIndex )
-        {
-            printf("Buffer recording complete.\n");
-            break;
-        }
-        Pa_Sleep(100);
-        printf("index = %d\n", dataPtr->frameIndex ); fflush(stdout);
+        Pa_Sleep(1000);
+        printf("index = %d\n", data.frameIndex ); fflush(stdout);
     }
-
-    printf("Finished loop. Close stream.\n"); fflush(stdout);
-
+    printf("Stop recording!!\n"); fflush(stdout);
     err = Pa_CloseStream( stream );
     if( err != paNoError ) goto error;
 
-    printf("Done.\n"); fflush(stdout);
+    /* Measure maximum peak amplitude. */
+    max = 0;
+    average = 0;
+    for( i=0; i<numSamples; i++ )
     {
-        SAMPLE max = 0;
-        SAMPLE posVal;
-        int i;
-        for( i=0; i<dataPtr->numSamples; i++ )
+        val = data.recordedSamples[i];
+        if( val < 0 ) val = -val; /* ABS */
+        if( val > max )
         {
-            posVal = dataPtr->recordedSamples[i];
-            if( posVal < 0 ) posVal = -posVal;
-            if( posVal > max ) max = posVal;
+            max = val;
         }
-        printf("Largest recorded sample = %d\n", max );
+        average += val;
     }
+    
+    average = average / numSamples;
+
+    if( PA_SAMPLE_TYPE == paFloat32 )
+    {
+        printf("sample max amplitude = %f\n", (double) max );
+        printf("sample average = %f\n", (double) average );
+    }
+    else
+    {
+        printf("sample max amplitude = %d\n", (int) max );
+        printf("sample average = %d\n", (int) average );
+    }
+    
     /* Write recorded data to a file. */
 #if 0
     {
@@ -231,26 +268,15 @@ PaError TestRecording( paTestData *dataPtr )
         }
         else
         {
-            fwrite( dataPtr->recordedSamples, dataPtr->samplesPerFrame * sizeof(SAMPLE), totalFrames, fid );
+            fwrite( data.recordedSamples, NUM_CHANNELS * sizeof(SAMPLE), totalFrames, fid );
             fclose( fid );
             printf("Wrote data to 'recorded.raw'\n");
         }
     }
 #endif
 
-error:
-    return err;
-}
-
-/****************************************************************/
-PaError TestPlayback( paTestData *dataPtr )
-{
-    PortAudioStream *stream;
-    PaError    err;
-    int        i;
-
-    /* Playback recorded data. */
-    dataPtr->frameIndex = 0;
+    /* Playback recorded data.  -------------------------------------------- */
+    data.frameIndex = 0;
     printf("Begin playback.\n"); fflush(stdout);
     err = Pa_OpenStream(
               &stream,
@@ -259,7 +285,7 @@ PaError TestPlayback( paTestData *dataPtr )
               PA_SAMPLE_TYPE,
               NULL,
               Pa_GetDefaultOutputDeviceID(),
-              dataPtr->samplesPerFrame,               /* stereo output */
+              NUM_CHANNELS,               /* stereo output */
               PA_SAMPLE_TYPE,
               NULL,
               SAMPLE_RATE,
@@ -267,62 +293,28 @@ PaError TestPlayback( paTestData *dataPtr )
               0,               /* number of buffers, if zero then use default minimum */
               paClipOff,       /* we won't output out of range samples so don't bother clipping them */
               playCallback,
-              dataPtr );
-    if( err != paNoError ) goto error;
-    err = Pa_StartStream( stream );
-    if( err != paNoError ) goto error;
-    printf("Waiting for playback to finish.\n"); fflush(stdout);
-    for( i=0; i<(NUM_SECONDS*1000/SLEEP_DUR_MSEC); i++ )
-    {
-        Pa_Sleep(100);
-        printf("index = %d\n", dataPtr->frameIndex );
-    }
-    err = Pa_CloseStream( stream );
+              &data );
     if( err != paNoError ) goto error;
     
-error:
-    return err;
-}
-/*******************************************************************/
-int main(void);
-int main(void)
-{
-    PaError    err;
-    paTestData data;
-    long       totalFrames;
-    long       numBytes;
-    long       i;
-    printf("patest_record.c\n"); fflush(stdout);
-
-    data.frameIndex = 0;
-    data.samplesPerFrame = 2;
-    data.maxFrameIndex = totalFrames = NUM_SECONDS*SAMPLE_RATE;
-
-    printf("totalFrames = %d\n", totalFrames ); fflush(stdout);
-    data.numSamples = totalFrames * data.samplesPerFrame;
-
-    numBytes = data.numSamples * sizeof(SAMPLE);
-    data.recordedSamples = (SAMPLE *) malloc( numBytes );
-    if( data.recordedSamples == NULL )
+    if( stream )
     {
-        printf("Could not allocate record array.\n");
-        exit(1);
-    }
-    for( i=0; i<data.numSamples; i++ ) data.recordedSamples[i] = 0;
-
-    err = Pa_Initialize();
-    if( err != paNoError ) goto error;
-
-    for( i=0; i<2; i++ )
-    {
-        err = TestRecording( &data );
+        err = Pa_StartStream( stream );
         if( err != paNoError ) goto error;
+        printf("Start playback!!\n"); fflush(stdout);
 
-        err = TestPlayback( &data );
+        while( Pa_StreamActive( stream ) )
+        {
+            Pa_Sleep(1000);
+            printf("index = %d\n", data.frameIndex ); fflush(stdout);
+        }
+
+        printf("Stop playback!!\n"); fflush(stdout);
+        err = Pa_CloseStream( stream );
         if( err != paNoError ) goto error;
+        printf("Done.\n"); fflush(stdout);
     }
-
     free( data.recordedSamples );
+
     Pa_Terminate();
     return 0;
 
@@ -331,9 +323,5 @@ error:
     fprintf( stderr, "An error occured while using the portaudio stream\n" );
     fprintf( stderr, "Error number: %d\n", err );
     fprintf( stderr, "Error message: %s\n", Pa_GetErrorText( err ) );
-    if( err == paHostError )
-    {
-        fprintf( stderr, "Host Error number: %d\n", Pa_GetHostError() );
-    }
     return -1;
 }

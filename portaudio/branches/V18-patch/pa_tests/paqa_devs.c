@@ -50,8 +50,8 @@ typedef struct PaQaData
     int            mode;
     short          sawPhase;
     PaSampleFormat format;
-}
-PaQaData;
+} PaQaData;
+
 /****************************************** Prototypes ***********/
 static void TestDevices( int mode );
 static void TestFormats( int mode, PaDeviceID deviceID, double sampleRate,
@@ -61,9 +61,11 @@ static int TestAdvance( int mode, PaDeviceID deviceID, double sampleRate,
 static int QaCallback( void *inputBuffer, void *outputBuffer,
                        unsigned long framesPerBuffer,
                        PaTimestamp outTime, void *userData );
+                       
 /****************************************** Globals ***********/
 static int gNumPassed = 0;
 static int gNumFailed = 0;
+
 /****************************************** Macros ***********/
 /* Print ERROR if it fails. Tally success or failure. */
 /* Odd do-while wrapper seems to be needed for some compilers. */
@@ -97,7 +99,7 @@ static int QaCallback( void *inputBuffer, void *outputBuffer,
     (void) inputBuffer;
     (void) outTime;
 
-    /* Play simle sawtooth wave. */
+    /* Play simple sawtooth wave. */
     if( data->mode == MODE_OUTPUT )
     {
         phase = data->sawPhase;
@@ -217,6 +219,7 @@ static void TestDevices( int mode )
 
                 TESTSR(11025.0);
                 TESTSR(22050.0);
+                TESTSR(34567.0);
                 TESTSR(44100.0);
                 TestFormats( mode, id, high, jc );
             }
@@ -237,7 +240,6 @@ static void TestFormats( int mode, PaDeviceID deviceID, double sampleRate,
     TestAdvance( mode, deviceID, sampleRate, numChannels, paFloat32 ); /* */
     TestAdvance( mode, deviceID, sampleRate, numChannels, paInt16 ); /* */
     TestAdvance( mode, deviceID, sampleRate, numChannels, paInt32 ); /* */
-    /* TestAdvance( mode, deviceID, sampleRate, numChannels, paInt24 ); */
 }
 /*******************************************************************/
 static int TestAdvance( int mode, PaDeviceID deviceID, double sampleRate,
@@ -250,6 +252,7 @@ static int TestAdvance( int mode, PaDeviceID deviceID, double sampleRate,
     printf("------ TestAdvance: %s, device = %d, rate = %g, numChannels = %d, format = %d -------\n",
            ( mode == MODE_INPUT ) ? "INPUT" : "OUTPUT",
            deviceID, sampleRate, numChannels, format);
+    fflush(stdout);
     /* Setup data for synthesis thread. */
     myData.framesLeft = (unsigned long) (sampleRate * 100); /* 100 seconds */
     myData.numChannels = numChannels;
@@ -299,6 +302,7 @@ static int TestAdvance( int mode, PaDeviceID deviceID, double sampleRate,
         /* Check to make sure PortAudio is advancing timeStamp. */
         result = paNoError;
         oldStamp = Pa_StreamTime(stream);
+        fflush(stdout);
         Pa_Sleep(msec);
         newStamp = Pa_StreamTime(stream);
         printf("oldStamp = %g,newStamp = %g\n", oldStamp, newStamp ); /**/
@@ -313,5 +317,6 @@ static int TestAdvance( int mode, PaDeviceID deviceID, double sampleRate,
     }
 error:
     if( stream != NULL ) Pa_CloseStream( stream );
+    fflush(stdout);
     return result;
 }

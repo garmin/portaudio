@@ -39,9 +39,12 @@
 #include <math.h>
 #include "portaudio.h"
 
-#define NUM_SECONDS   (5)
+#define NUM_SECONDS   (10)
 #define SAMPLE_RATE   (44100)
+#define AMPLITUDE     (0.9)
 #define FRAMES_PER_BUFFER  (64)
+#define OUTPUT_DEVICE Pa_GetDefaultOutputDeviceID()
+//#define OUTPUT_DEVICE (2)
 
 #ifndef M_PI
 #define M_PI  (3.14159265)
@@ -90,11 +93,12 @@ int main(void)
     PaError err;
     paTestData data;
     int i;
-    printf("PortAudio Test: output sine wave. SR = %d, BufSize = %d\n", SAMPLE_RATE, FRAMES_PER_BUFFER);
+    printf("PortAudio Test: output sine wave. SR = %d, BufSize = %d, devID = %d\n",
+    	SAMPLE_RATE, FRAMES_PER_BUFFER, OUTPUT_DEVICE);
     /* initialise sinusoidal wavetable */
     for( i=0; i<TABLE_SIZE; i++ )
     {
-        data.sine[i] = (float) sin( ((double)i/(double)TABLE_SIZE) * M_PI * 2. );
+        data.sine[i] = (float) (AMPLITUDE * sin( ((double)i/(double)TABLE_SIZE) * M_PI * 2. ));
     }
     data.left_phase = data.right_phase = 0;
     err = Pa_Initialize();
@@ -105,7 +109,7 @@ int main(void)
               0,              /* no input */
               paFloat32,  /* 32 bit floating point input */
               NULL,
-              Pa_GetDefaultOutputDeviceID(), /* default output device */
+              OUTPUT_DEVICE,
               2,          /* stereo output */
               paFloat32,      /* 32 bit floating point output */
               NULL,
@@ -118,7 +122,7 @@ int main(void)
     if( err != paNoError ) goto error;
     err = Pa_StartStream( stream );
     if( err != paNoError ) goto error;
-    printf("Play for %d seconds.\n", NUM_SECONDS );
+    printf("Play for %d seconds.\n", NUM_SECONDS ); fflush(stdout);
     Pa_Sleep( NUM_SECONDS * 1000 );
 
     err = Pa_StopStream( stream );

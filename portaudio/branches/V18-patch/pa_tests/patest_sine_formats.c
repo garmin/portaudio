@@ -38,18 +38,18 @@
 #include <math.h>
 #include "portaudio.h"
 
-#define NUM_SECONDS        (20)
+#define NUM_SECONDS        (5)
 #define SAMPLE_RATE        (44100)
 #define FRAMES_PER_BUFFER  (512)
-#define LEFT_FREQ          (SAMPLE_RATE/256.0)  /* So we hit 1.0 */
+#define LEFT_FREQ          ((2 * SAMPLE_RATE)/FRAMES_PER_BUFFER)  /* So we hit 1.0 */
 #define RIGHT_FREQ         (500.0)
-#define AMPLITUDE          (1.0)
+#define AMPLITUDE          (0.9)
 
 /* Select ONE format for testing. */
 #define TEST_UINT8    (0)
 #define TEST_INT8     (0)
-#define TEST_INT16    (1)
-#define TEST_FLOAT32  (0)
+#define TEST_INT16    (0)
+#define TEST_FLOAT32  (1)
 
 #if TEST_UINT8
 #define TEST_FORMAT         paUInt8
@@ -176,7 +176,7 @@ int main(void)
     err = Pa_StartStream( stream );
     if( err != paNoError ) goto error;
 
-    printf("Waiting %d seconds for sound to finish.\n", NUM_SECONDS );
+    printf("Waiting %d seconds for sound to finish.\n", NUM_SECONDS ); fflush(stdout);
     while( Pa_StreamActive( stream ) ) Pa_Sleep(10);
 
     err = Pa_CloseStream( stream );

@@ -66,26 +66,26 @@ static int gNumFailed = 0;
 /****************************************** Macros ***********/
 /* Print ERROR if it fails. Tally success or failure. */
 /* Odd do-while wrapper seems to be needed for some compilers. */
-#define EXPECT(_exp) \
+#define EXPECT( msg, _exp) \
     do \
     { \
         if ((_exp)) {\
             gNumPassed++; \
         } \
         else { \
-            printf("\nERROR - 0x%x - %s for %s\n", result, Pa_GetErrorText(result), #_exp ); \
+            printf("\nERROR %s\n    - 0x%x - %s for %s\n", (msg), result, Pa_GetErrorText(result), #_exp ); \
             gNumFailed++; \
             goto error; \
         } \
     } while(0)
-#define HOPEFOR(_exp) \
+#define HOPEFOR( msg, _exp) \
     do \
     { \
         if ((_exp)) {\
             gNumPassed++; \
         } \
         else { \
-            printf("\nERROR - 0x%x - %s for %s\n", result, Pa_GetErrorText(result), #_exp ); \
+            printf("\nERROR %s\n    - 0x%x - %s for %s\n", (msg), result, Pa_GetErrorText(result), #_exp ); \
             gNumFailed++; \
         } \
     } while(0)
@@ -130,9 +130,9 @@ int main(void);
 int main(void)
 {
     PaError result;
-    EXPECT( ((result=Pa_Initialize()) == 0) );
-    TestBadOpens();
+    EXPECT( "init", ((result=Pa_Initialize()) == 0) );
     TestBadActions();
+    TestBadOpens();
 error:
     Pa_Terminate();
     printf("QA Report: %d passed, %d failed.\n", gNumPassed, gNumFailed );
@@ -148,7 +148,7 @@ static int TestBadOpens( void )
     myData.framesLeft = (unsigned long) (SAMPLE_RATE * 100); /* 100 seconds */
     myData.numChannels = 1;
     myData.mode = MODE_OUTPUT;
-    HOPEFOR( (/* No devices specified. */
+    HOPEFOR( "No devices specified.",(
                  (result = Pa_OpenStream(
                                &stream,
                                paNoDevice, 0, paFloat32, NULL,
@@ -158,7 +158,7 @@ static int TestBadOpens( void )
                                QaCallback,
                                &myData )
                  ) == paInvalidDeviceId) );
-    HOPEFOR( ( /* Out of range input device specified. */
+    HOPEFOR( "Out of range input device specified.",(
                  (result = Pa_OpenStream(
                                &stream,
                                Pa_CountDevices(), 0, paFloat32, NULL,
@@ -169,7 +169,7 @@ static int TestBadOpens( void )
                                &myData )
                  ) == paInvalidDeviceId) );
 
-    HOPEFOR( ( /* Out of range output device specified. */
+    HOPEFOR( "Out of range output device specified.",(
                  (result = Pa_OpenStream(
                                &stream,
                                paNoDevice, 0, paFloat32, NULL,
@@ -179,7 +179,7 @@ static int TestBadOpens( void )
                                QaCallback,
                                &myData )
                  ) == paInvalidDeviceId) );
-    HOPEFOR( ( /* Zero input channels. */
+    HOPEFOR( "Zero input channels.",(
                  (result = Pa_OpenStream(
                                &stream,
                                Pa_GetDefaultInputDeviceID(), 0, paFloat32, NULL,
@@ -189,7 +189,7 @@ static int TestBadOpens( void )
                                QaCallback,
                                &myData )
                  ) == paInvalidChannelCount) );
-    HOPEFOR( ( /* Zero output channels. */
+    HOPEFOR( "Zero output channels.",(
                  (result = Pa_OpenStream(
                                &stream,
                                paNoDevice, 0, paFloat32, NULL,
@@ -199,7 +199,7 @@ static int TestBadOpens( void )
                                QaCallback,
                                &myData )
                  ) == paInvalidChannelCount) );
-    HOPEFOR( ( /* Nonzero input channels but no device. */
+    HOPEFOR( "Nonzero input channels but no device.",(
                  (result = Pa_OpenStream(
                                &stream,
                                Pa_GetDefaultInputDeviceID(), 2, paFloat32, NULL,
@@ -210,7 +210,7 @@ static int TestBadOpens( void )
                                &myData )
                  ) == paInvalidChannelCount) );
 
-    HOPEFOR( ( /* Nonzero output channels but no device. */
+    HOPEFOR( "Nonzero output channels but no device.",(
                  (result = Pa_OpenStream(
                                &stream,
                                paNoDevice, 2, paFloat32, NULL,
@@ -220,7 +220,7 @@ static int TestBadOpens( void )
                                QaCallback,
                                &myData )
                  ) == paInvalidChannelCount) );
-    HOPEFOR( ( /* NULL stream pointer. */
+    HOPEFOR( "NULL stream pointer.",(
                  (result = Pa_OpenStream(
                                NULL,
                                paNoDevice, 0, paFloat32, NULL,
@@ -230,7 +230,7 @@ static int TestBadOpens( void )
                                QaCallback,
                                &myData )
                  ) == paBadStreamPtr) );
-    HOPEFOR( ( /* Low sample rate. */
+    HOPEFOR( "Low sample rate.",(
                  (result = Pa_OpenStream(
                                &stream,
                                paNoDevice, 0, paFloat32, NULL,
@@ -240,7 +240,7 @@ static int TestBadOpens( void )
                                QaCallback,
                                &myData )
                  ) == paInvalidSampleRate) );
-    HOPEFOR( ( /* High sample rate. */
+    HOPEFOR( "High sample rate.",(
                  (result = Pa_OpenStream(
                                &stream,
                                paNoDevice, 0, paFloat32, NULL,
@@ -250,7 +250,7 @@ static int TestBadOpens( void )
                                QaCallback,
                                &myData )
                  ) == paInvalidSampleRate) );
-    HOPEFOR( ( /* NULL callback. */
+    HOPEFOR( "NULL callback.",(
                  (result = Pa_OpenStream(
                                &stream,
                                paNoDevice, 0, paFloat32, NULL,
@@ -260,7 +260,7 @@ static int TestBadOpens( void )
                                NULL,
                                &myData )
                  ) == paNullCallback) );
-    HOPEFOR( ( /* Bad flag. */
+    HOPEFOR( "Bad flag.",(
                  (result = Pa_OpenStream(
                                &stream,
                                paNoDevice, 0, paFloat32, NULL,
@@ -271,8 +271,8 @@ static int TestBadOpens( void )
                                &myData )
                  ) == paInvalidFlag) );
 
-#if 0 /* FIXME - this is legal for some implementations. */
-    HOPEFOR( ( /* Use input device as output device. */
+#if 1 /* FIXME - this is legal for some implementations. */
+    HOPEFOR( "Use input device as output device.",(
                  (result = Pa_OpenStream(
                                &stream,
                                paNoDevice, 0, paFloat32, NULL,
@@ -283,7 +283,7 @@ static int TestBadOpens( void )
                                &myData )
                  ) == paInvalidDeviceId) );
 
-    HOPEFOR( ( /* Use output device as input device. */
+    HOPEFOR( "Use output device as input device.",(
                  (result = Pa_OpenStream(
                                &stream,
                                Pa_GetDefaultOutputDeviceID(), 2, paFloat32, NULL,
@@ -309,7 +309,7 @@ static int TestBadActions( void )
     myData.numChannels = 1;
     myData.mode = MODE_OUTPUT;
     /* Default output. */
-    EXPECT( ((result = Pa_OpenStream(
+    EXPECT( "TestBadActions", ((result = Pa_OpenStream(
                            &stream,
                            paNoDevice, 0, paFloat32, NULL,
                            Pa_GetDefaultOutputDeviceID(), 2, paFloat32, NULL,
@@ -318,12 +318,12 @@ static int TestBadActions( void )
                            QaCallback,
                            &myData )
              ) == 0) );
-    HOPEFOR( ((result = Pa_StartStream( NULL )) == paBadStreamPtr) );
-    HOPEFOR( ((result = Pa_StopStream( NULL )) == paBadStreamPtr) );
-    HOPEFOR( ((result = Pa_StreamActive( NULL )) == paBadStreamPtr) );
-    HOPEFOR( ((result = Pa_CloseStream( NULL )) == paBadStreamPtr) );
-    HOPEFOR( ((result = (PaError)Pa_StreamTime( NULL )) != 0) );
-    HOPEFOR( ((result = (PaError)Pa_GetCPULoad( NULL )) != 0) );
+    HOPEFOR( "start", ((result = Pa_StartStream( NULL )) == paBadStreamPtr) );
+    HOPEFOR( "stop", ((result = Pa_StopStream( NULL )) == paBadStreamPtr) );
+    HOPEFOR( "active?", ((result = Pa_StreamActive( NULL )) == paBadStreamPtr) );
+    HOPEFOR( "close", ((result = Pa_CloseStream( NULL )) == paBadStreamPtr) );
+    HOPEFOR( "time?", ((result = (PaError)Pa_StreamTime( NULL )) != 0) );
+    HOPEFOR( "CPULoad?", ((result = (PaError)Pa_GetCPULoad( NULL )) != 0) );
 error:
     if( stream != NULL ) Pa_CloseStream( stream );
     return result;
