@@ -222,6 +222,57 @@ static void PaConvert_UInt8_Float32(
 }
 
 /*************************************************************************/
+static void PaConvert_Float32_Int32(
+    float *sourceBuffer, int sourceStride,
+    long *targetBuffer, int targetStride,
+    int numSamples )
+{
+	int i;
+	for( i=0; i<numSamples; i++ )
+	{
+        int samp = (int) (*sourceBuffer * 0x7FFFFFFF);
+        *targetBuffer = samp;
+        sourceBuffer += sourceStride;
+        targetBuffer += targetStride;
+    }
+}
+
+/*************************************************************************/
+static void PaConvert_Float32_Int32_Clip(
+    float *sourceBuffer, int sourceStride,
+    long *targetBuffer, int targetStride,
+    int numSamples )
+{
+	int i;
+	for( i=0; i<numSamples; i++ )
+	{
+        int samp;
+        float fs = *sourceBuffer;
+        CLIP( fs, -1.0, 0.999999 );
+        samp = (int) (*sourceBuffer * 0x7FFFFFFF);
+        *targetBuffer = samp;
+        sourceBuffer += sourceStride;
+        targetBuffer += targetStride;
+    }
+}
+
+/*************************************************************************/
+static void PaConvert_Int32_Float32(
+    long *sourceBuffer, int sourceStride,
+    float *targetBuffer, int targetStride,
+    int numSamples )
+{
+    int i;
+	for( i=0; i<numSamples; i++ )
+	{
+        float samp = *sourceBuffer * (1.0f / 0x7FFFFFFF);
+        *targetBuffer = samp;
+        sourceBuffer += sourceStride;
+        targetBuffer += targetStride;
+    }
+}
+
+/*************************************************************************/
 static PortAudioConverter *PaConvert_SelectProc( PaSampleFormat sourceFormat,
         PaSampleFormat targetFormat,  int ifClip, int ifDither )
 {
@@ -258,6 +309,18 @@ static PortAudioConverter *PaConvert_SelectProc( PaSampleFormat sourceFormat,
             break;
         }
         break;
+
+    case paInt32:
+        switch( targetFormat )
+        {
+        case paFloat32:
+            proc = (PortAudioConverter *) PaConvert_Int32_Float32;
+            break;
+        default:
+            break;
+        }
+        break;
+        
     case paFloat32:
         switch( targetFormat )
         {
@@ -275,6 +338,11 @@ static PortAudioConverter *PaConvert_SelectProc( PaSampleFormat sourceFormat,
             else if( ifClip ) proc = (PortAudioConverter *) PaConvert_Float32_Int16_Clip;
             else if( ifDither ) proc = (PortAudioConverter *) PaConvert_Float32_Int16_Dither;
             else proc = (PortAudioConverter *) PaConvert_Float32_Int16;
+            break;
+        case paInt32:
+            /* Don't bother dithering a 32 bit integer! */
+            if( ifClip ) proc = (PortAudioConverter *) PaConvert_Float32_Int32_Clip;
+            else proc = (PortAudioConverter *) PaConvert_Float32_Int32;
             break;
         default:
             break;
