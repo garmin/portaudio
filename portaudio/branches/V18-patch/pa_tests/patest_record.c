@@ -39,11 +39,11 @@
 #include <stdlib.h>
 #include "portaudio.h"
 
-/* #define SAMPLE_RATE  (17932) /* Test failure to open with this value. */
+/* #define SAMPLE_RATE  (17932) // Test failure to open with this value. */
 #define SAMPLE_RATE  (44100)
 #define NUM_SECONDS     (5)
 #define NUM_CHANNELS    (2)
-/* #define DITHER_FLAG     (paDitherOff)  /**/
+/* #define DITHER_FLAG     (paDitherOff)  */
 #define DITHER_FLAG     (0) /**/
 #define FRAMES_PER_BUFFER  (1024)
 
@@ -213,7 +213,7 @@ int main(void)
               SAMPLE_RATE,
               FRAMES_PER_BUFFER,            /* frames per buffer */
               0,               /* number of buffers, if zero then use default minimum */
-              0, //paDitherOff,    /* flags */
+              0, /* paDitherOff, // flags */
               recordCallback,
               &data );
     if( err != paNoError ) goto error;
@@ -247,14 +247,14 @@ int main(void)
     
     average = average / numSamples;
 
-    if( PA_SAMPLE_TYPE == paFloat32 )
-    {
+    if( PA_SAMPLE_TYPE == paFloat32 )   /* This should be done at compile-time with "#if" ?? */
+    {                                   /* MIPS-compiler warns at the int-version below.     */
         printf("sample max amplitude = %f\n", max );
         printf("sample average = %f\n", average );
     }
     else
     {
-        printf("sample max amplitude = %d\n", max );
+        printf("sample max amplitude = %d\n", max );    /* <-- This IS compiled anyhow. */
         printf("sample average = %d\n", average );
     }
     
