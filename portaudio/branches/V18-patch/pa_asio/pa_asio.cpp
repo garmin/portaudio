@@ -29,7 +29,7 @@
  * CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
  * WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
- 
+
 /* Modification History
 
         08-03-01 First version : Stephane Letz
@@ -59,6 +59,7 @@
         30-04-02 Pa_ASIO_QueryDeviceInfo bug correction, memory allocation checking, better error handling : D Viens, P Burk, S Letz
         01-12-02 Fix Pa_GetDefaultInputDeviceID and Pa_GetDefaultOuputDeviceID result when no driver are available : S Letz
         05-12-02 More debug messages : S Letz
+        01-23-03 Increased max channels to 128. Fixed comparison of (OutputChannels > kMaxInputChannels) : P Burk
         
         TO DO :
         
@@ -93,8 +94,8 @@
 enum {
         // number of input and outputs supported by the host application
         // you can change these to higher or lower values
-        kMaxInputChannels = 32,
-        kMaxOutputChannels = 32
+        kMaxInputChannels = 128,
+        kMaxOutputChannels = 128
 };
 
 /* ASIO specific device information. */
@@ -363,7 +364,7 @@ static ASIOError Pa_ASIO_CreateBuffers (PaHostSoundControl *asioDriverInfo, long
         ASIOBufferInfo *info = asioDriverInfo->bufferInfos;
         
         // Check parameters
-        if ((InputChannels > kMaxInputChannels) || (OutputChannels > kMaxInputChannels)) return ASE_InvalidParameter;
+        if ((InputChannels > kMaxInputChannels) || (OutputChannels > kMaxOutputChannels)) return ASE_InvalidParameter;
         
         for(i = 0; i < InputChannels; i++, info++){
                 info->isInput = ASIOTrue;
