@@ -42,7 +42,7 @@
 #define NUM_SECONDS         (8)
 #define SLEEP_DUR           (800)
 #define SAMPLE_RATE         (44100)
-#define FRAMES_PER_BUFFER   (4096)
+#define FRAMES_PER_BUFFER   (256)
 
 #define MSEC_PER_BUFFER     (1000 * FRAMES_PER_BUFFER / SAMPLE_RATE)
 
