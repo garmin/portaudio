@@ -76,7 +76,23 @@ an application add the following source files to your project:
 pa_win_ds\pa_dsound.c</b></pre>
 </blockquote>
 Link with the system library "<b>dsound.lib</b>" using the procedure described
-above for "winmm.lib".</blockquote>
+above for "winmm.lib".
+<br>&nbsp;
+<table BORDER >
+<tr>
+<td><b>Borland</b> users cannot link with the "dsound.lib" from Microsoft
+directly. Emmanuel offered this advice:
+<p>One can use implib from Borland to generate a new .lib file which is
+compatible with Borland C++.
+<p>Use: "implib dsound.dll dsound.lib" and include dsound.lib into your
+project.
+<p>I still had a problem executing the patest_record example. The thread
+ended with an error like 'Floating point overflow at...'. This problem
+was caused due to a fault in the compiler. Now I'm using Borland 5.02 (instead
+of 5.01). Everything seems to be working fine at the moment.</td>
+</tr>
+</table>
+</blockquote>
 
 <blockquote>You might try compiling the "pa_tests\patest_saw.c" file first
 because it is the simplest.</blockquote>
