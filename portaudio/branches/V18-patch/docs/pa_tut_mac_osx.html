@@ -33,9 +33,12 @@ run the PortAudio examples.
 pa_common/pa_lib.c
 pa_common/portaudio.h
 pa_common/pa_host.h
-pa_common/pa_convert.c</pre>
+pa_common/pa_convert.c
+pablio/ringbuffer.c
+pablio/ringbuffer.h
+</pre>
 </blockquote>
-Add the Apple CoreAudio.framework to your project by selecting "Add FrameWorks..."
+Add both the Apple CoreAudio.framework and the AudioToolbox.framework to your project by selecting "Add FrameWorks..."
 from the Project menu.
 <p>Compile and run the "pa_tests:patest_saw.c" file first because it is
 the simplest.</blockquote>
