@@ -180,12 +180,17 @@ int main(void)
     }
     while( (load < MAX_USAGE) && (data.numSines < MAX_SINES) );
 
+    printf("Press ENTER to stop.\n" ); fflush(stdout);
+    getchar();
+
+	printf("CPU load = %f\n", Pa_GetCPULoad( stream ) );
     err = Pa_StopStream( stream );
     if( err != paNoError ) goto error;
     err = Pa_CloseStream( stream );
     if( err != paNoError ) goto error;
     Pa_Terminate();
     printf("Test finished.\n");
+    fflush( stdout );
     return err;
 error:
     Pa_Terminate();

@@ -45,6 +45,7 @@
 #define SAMPLE_RATE         (44100)
 #define FRAMES_PER_BUFFER   (256)
 #define MIN_LATENCY_MSEC    (400)
+#define MAX_INPUT_CHANNELS  (9999)
 #define NUM_BUFFERS         ((MIN_LATENCY_MSEC * SAMPLE_RATE) / (FRAMES_PER_BUFFER * 1000))
 #ifndef M_PI
 #define M_PI  (3.14159265)
@@ -133,13 +134,21 @@ int main(void)
         printf("Could not get device info!\n");
         goto error;
     }
-    data.numChannels = pdi->maxInputChannels;
     printf("Input Device name is %s\n", pdi->name );
     printf("Input Device has %d channels.\n", pdi->maxInputChannels);
+    if( pdi->maxInputChannels <= MAX_INPUT_CHANNELS )
+    {
+        data.numChannels = pdi->maxInputChannels;
+    }
+    else
+    {
+        data.numChannels = MAX_INPUT_CHANNELS;
+        printf("Only use %d channels.\n", MAX_INPUT_CHANNELS );
+    }
     err = Pa_OpenStream(
               &stream,
               inputDevice,
-              pdi->maxInputChannels,
+              data.numChannels,
               paFloat32,  /* 32 bit floating point input */
               NULL,
               OUTPUT_DEVICE,

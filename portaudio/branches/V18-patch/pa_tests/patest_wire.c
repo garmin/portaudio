@@ -49,7 +49,7 @@
 ** full duplex audio (simultaneous record and playback).
 ** And some only support full duplex at lower sample rates.
 */
-#define SAMPLE_RATE  (22050)
+#define SAMPLE_RATE  (44100)
 #define FRAMES_PER_BUFFER  (64)
 
 #if 1
@@ -75,22 +75,25 @@ static int wireCallback( void *inputBuffer, void *outputBuffer,
     SAMPLE *in = (SAMPLE*)inputBuffer;
     unsigned int i;
     (void) outTime;
-
+    int samplesPerFrame;
+    int numSamples;
+    
+    samplesPerFrame = (int) userData;
+    numSamples =  framesPerBuffer * samplesPerFrame;
+    
     /* This may get called with NULL inputBuffer during initial setup. */
     if( inputBuffer == NULL )
     {
-        for( i=0; i<framesPerBuffer; i++ )
+        for( i=0; i<numSamples; i++ )
         {
-            *out++ = 0;  /* left */
-            *out++ = 0;  /* right */
+            *out++ = 0;
         }
     }
     else
     {
-        for( i=0; i<framesPerBuffer; i++ )
+        for( i=0; i<numSamples; i++ )
         {
-            *out++ = *in++;  /* left */
-            *out++ = *in++;  /* right */
+            *out++ = *in++;
         }
     }
 
@@ -104,40 +107,62 @@ int main(void)
 {
     PortAudioStream *stream;
     PaError err;
+    const    PaDeviceInfo *inputInfo;
+    const    PaDeviceInfo *outputInfo;
+    int      numChannels;
     
     err = Pa_Initialize();
     if( err != paNoError ) goto error;
     
     printf("PortAudio Test: input device ID  = %d\n", INPUT_DEVICE );
     printf("PortAudio Test: output device ID = %d\n", OUTPUT_DEVICE );
-    err = Pa_OpenStream(
-              &stream,
-              INPUT_DEVICE,
-              2,               /* stereo input */
-              PA_SAMPLE_TYPE,
-              NULL,
-              OUTPUT_DEVICE,
-              2,               /* stereo output */
-              PA_SAMPLE_TYPE,
-              NULL,
-              SAMPLE_RATE,
-              FRAMES_PER_BUFFER,            /* frames per buffer */
-              0,               /* number of buffers, if zero then use default minimum */
-              paClipOff,       /* we won't output out of range samples so don't bother clipping them */
-              wireCallback,
-              NULL );          /* no data */
-    if( err != paNoError ) goto error;
     
-    err = Pa_StartStream( stream );
-    if( err != paNoError ) goto error;
-    
-    printf("Full duplex sound test in progress.\n");
-    printf("Hit ENTER to exit test.\n");  fflush(stdout);
-    getchar();
-    
-    printf("Closing stream.\n");
-    err = Pa_CloseStream( stream );
-    if( err != paNoError ) goto error;
+    /* Use as many channels aspossible. */
+    inputInfo = Pa_GetDeviceInfo( INPUT_DEVICE );
+    outputInfo = Pa_GetDeviceInfo( OUTPUT_DEVICE );
+    /* Use smaller count. */
+    numChannels = (inputInfo->maxInputChannels < outputInfo->maxOutputChannels) ?
+        inputInfo->maxInputChannels : outputInfo->maxOutputChannels;
+        
+    printf("maxInputChannels channels = %d\n", inputInfo->maxInputChannels );
+    printf("maxOutputChannels channels = %d\n", outputInfo->maxOutputChannels );
+    if( numChannels > 0 )
+    {
+        printf("Using %d channels.\n", numChannels );
+        
+        err = Pa_OpenStream(
+                &stream,
+                INPUT_DEVICE,
+                numChannels,
+                PA_SAMPLE_TYPE,
+                NULL,
+                OUTPUT_DEVICE,
+                numChannels,
+                PA_SAMPLE_TYPE,
+                NULL,
+                SAMPLE_RATE,
+                FRAMES_PER_BUFFER,            /* frames per buffer */
+                0,               /* number of buffers, if zero then use default minimum */
+                paClipOff,       /* we won't output out of range samples so don't bother clipping them */
+                wireCallback,
+                (void *) numChannels );  /* pass numChannels to callback */
+        if( err != paNoError ) goto error;
+        
+        err = Pa_StartStream( stream );
+        if( err != paNoError ) goto error;
+        
+        printf("Full duplex sound test in progress.\n");
+        printf("Hit ENTER to exit test.\n");  fflush(stdout);
+        getchar();
+        
+        printf("Closing stream.\n");
+        err = Pa_CloseStream( stream );
+        if( err != paNoError ) goto error;
+    }
+    else
+    {
+        printf("Sorry, not enough channels.\n");
+    }
     Pa_Terminate();
     
     printf("Full duplex sound test complete.\n"); fflush(stdout);

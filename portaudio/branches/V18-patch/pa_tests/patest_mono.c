@@ -40,7 +40,7 @@
 #include "portaudio.h"
 
 #define NUM_SECONDS   (10)
-#define SAMPLE_RATE   (11025)
+#define SAMPLE_RATE   (44100)
 #define AMPLITUDE     (0.8)
 #define FRAMES_PER_BUFFER  (64)
 #define OUTPUT_DEVICE Pa_GetDefaultOutputDeviceID()
