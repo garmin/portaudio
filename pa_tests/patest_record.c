@@ -2,7 +2,7 @@
  * $Id$
  * patest_record.c
  * Record input into an array.
- * Save array to a file.
+ * Optionally save array to a file.
  * Playback recorded data.
  *
  * Author: Phil Burk  http://www.softsynth.com
@@ -85,41 +85,43 @@ static int recordCallback( void *inputBuffer, void *outputBuffer,
     paTestData *data = (paTestData*)userData;
     SAMPLE *rptr = (SAMPLE*)inputBuffer;
     SAMPLE *wptr = &data->recordedSamples[data->frameIndex * NUM_CHANNELS];
-    long framesToCalc;
+    long framesToRecord;
     long i;
     int finished;
     unsigned long framesLeft = data->maxFrameIndex - data->frameIndex;
+    int samplesToRecord;
 
     (void) outputBuffer; /* Prevent unused variable warnings. */
     (void) outTime;
 
     if( framesLeft < framesPerBuffer )
     {
-        framesToCalc = framesLeft;
+        framesToRecord = framesLeft;
         finished = 1;
     }
     else
     {
-        framesToCalc = framesPerBuffer;
+        framesToRecord = framesPerBuffer;
         finished = 0;
     }
+    
+    samplesToRecord = framesToRecord * NUM_CHANNELS;
+    
     if( inputBuffer == NULL )
     {
-        for( i=0; i<framesToCalc; i++ )
+        for( i=0; i<samplesToRecord; i++ )
         {
-            *wptr++ = SAMPLE_SILENCE;  /* left */
-            if( NUM_CHANNELS == 2 ) *wptr++ = SAMPLE_SILENCE;  /* right */
+            *wptr++ = SAMPLE_SILENCE;
         }
     }
     else
     {
-        for( i=0; i<framesToCalc; i++ )
+        for( i=0; i<samplesToRecord; i++ )
         {
-            *wptr++ = *rptr++;  /* left */
-            if( NUM_CHANNELS == 2 ) *wptr++ = *rptr++;  /* right */
+            *wptr++ = *rptr++;
         }
     }
-    data->frameIndex += framesToCalc;
+    data->frameIndex += framesToRecord;
     return finished;
 }
 
@@ -139,33 +141,33 @@ static int playCallback( void *inputBuffer, void *outputBuffer,
     unsigned int framesLeft = data->maxFrameIndex - data->frameIndex;
     (void) inputBuffer; /* Prevent unused variable warnings. */
     (void) outTime;
+    int framesToPlay, samplesToPlay, samplesPerBuffer;
 
     if( framesLeft < framesPerBuffer )
     {
-        /* final buffer... */
-        for( i=0; i<framesLeft; i++ )
-        {
-            *wptr++ = *rptr++;  /* left */
-            if( NUM_CHANNELS == 2 ) *wptr++ = *rptr++;  /* right */
-        }
-        for( ; i<framesPerBuffer; i++ )
-        {
-            *wptr++ = 0;  /* left */
-            if( NUM_CHANNELS == 2 ) *wptr++ = 0;  /* right */
-        }
-        data->frameIndex += framesLeft;
+        framesToPlay = framesLeft;
         finished = 1;
     }
     else
     {
-        for( i=0; i<framesPerBuffer; i++ )
-        {
-            *wptr++ = *rptr++;  /* left */
-            if( NUM_CHANNELS == 2 ) *wptr++ = *rptr++;  /* right */
-        }
-        data->frameIndex += framesPerBuffer;
+        framesToPlay = framesPerBuffer;
         finished = 0;
     }
+    
+    samplesToPlay = framesToPlay * NUM_CHANNELS;
+    samplesPerBuffer = framesPerBuffer * NUM_CHANNELS;
+
+    for( i=0; i<samplesToPlay; i++ )
+    {
+        *wptr++ = *rptr++;
+    }
+    for( ; i<framesPerBuffer; i++ )
+    {
+        *wptr++ = 0;  /* left */
+        if( NUM_CHANNELS == 2 ) *wptr++ = 0;  /* right */
+    }
+    data->frameIndex += framesToPlay;
+
     return finished;
 }
 
@@ -203,7 +205,7 @@ int main(void)
     err = Pa_OpenStream(
               &stream,
               Pa_GetDefaultInputDeviceID(),
-              NUM_CHANNELS,               /* stereo input */
+              NUM_CHANNELS,
               PA_SAMPLE_TYPE,
               NULL,
               paNoDevice,
@@ -286,7 +288,7 @@ int main(void)
               PA_SAMPLE_TYPE,
               NULL,
               Pa_GetDefaultOutputDeviceID(),
-              NUM_CHANNELS,               /* stereo output */
+              NUM_CHANNELS,
               PA_SAMPLE_TYPE,
               NULL,
               SAMPLE_RATE,
