@@ -65,12 +65,17 @@
  10.12.2002 - Phil Burk - Use AudioConverter to allow wide range of sample rates, and mono.
               Use FIFO (from pablio/rinbuffer.h) so that we can pull data through converter.
               Added PaOSX_FixVolumeScalar() to make iMic audible.
-              Support full duplex between two different devices.
+ 10.17.2002 - Phil Burk - Support full duplex between two different devices.
               Name internal functions PaOSX_*
               Dumped useless PA_MIN_LATENCY_MSEC environment variable.
+              Use kAudioDevicePropertyStreamFormatMatch to determine max channels.
 
 TODO:
 O- debug problem when changing sample rates on iMic
+O- add support for paInt32 format
+O- Why does iMic have grunge for the first second or two then clears up?
+O- request notification when formats change or device unplugged
+O- Why does patest_wire.c on iMic chop up sound when SR=34567Hz?
 */
 
 #include <CoreServices/CoreServices.h>
@@ -162,8 +167,8 @@ static const char sMapperSuffixInput[] = " - Input";
 static const char sMapperSuffixOutput[] = " - Output";
 
 /* Debug support. */
-static int sMaxBackgroundErrorMessages = 100;
-static int sCoverageCounter = 1; // used to check code coverage during validation
+//static int sMaxBackgroundErrorMessages = 100;
+//static int sCoverageCounter = 1; // used to check code coverage during validation
 
 /* We index the input devices first, then the output devices. */
 #define LOWEST_INPUT_DEVID     (0)
@@ -463,13 +468,11 @@ static int PaOSX_ScanDevices( Boolean isInput )
 */
 static int PaOSX_QueryDeviceInfo( PaHostDeviceInfo *hostDeviceInfo, int coreDeviceIndex, Boolean isInput )
 {
-    OSErr   err;
-    UInt32  outSize;
+    OSStatus         err;
+    UInt32           outSize;
     AudioStreamBasicDescription formatDesc;
     AudioDeviceID    devID;
-    double *sampleRates = NULL; /* non-const ptr */
-
-    PaDeviceInfo *deviceInfo = &hostDeviceInfo->paInfo;
+    PaDeviceInfo    *deviceInfo = &hostDeviceInfo->paInfo;
 
     deviceInfo->structVersion = 1;
     deviceInfo->maxInputChannels = 0;
@@ -480,22 +483,13 @@ static int PaOSX_QueryDeviceInfo( PaHostDeviceInfo *hostDeviceInfo, int coreDevi
 
     devID = sCoreDeviceIDs[ coreDeviceIndex ];
     hostDeviceInfo->audioDeviceID = devID;
-
+    DBUG(("PaOSX_QueryDeviceInfo: coreDeviceIndex = %d, devID = %d, isInput = %d\n",
+        coreDeviceIndex, devID, isInput ));
     // Get data format info from the device.
     outSize = sizeof(formatDesc);
     err = AudioDeviceGetProperty(devID, 0, isInput, kAudioDevicePropertyStreamFormat, &outSize, &formatDesc);
-
-    // If no channels supported, then not a very good device.
-    if( (err != noErr) || (formatDesc.mChannelsPerFrame == 0) ) goto error;
-
-    if( isInput )
-    {
-        deviceInfo->maxInputChannels = formatDesc.mChannelsPerFrame;
-    }
-    else
-    {
-        deviceInfo->maxOutputChannels = formatDesc.mChannelsPerFrame;
-    }
+    // This just may not be an appropriate device for input or output so leave quietly.
+    if( (err != noErr)  || (formatDesc.mChannelsPerFrame == 0) ) goto error;
 
     // Right now the Core Audio headers only define one formatID: LinearPCM
     // Apparently LinearPCM must be Float32 for now.
@@ -509,17 +503,38 @@ static int PaOSX_QueryDeviceInfo( PaHostDeviceInfo *hostDeviceInfo, int coreDevi
         return paSampleFormatNotSupported;
     }
 
+    // Determine maximum number of channels supported.
+    memset( &formatDesc, 0, sizeof(formatDesc));
+    formatDesc.mChannelsPerFrame = 256; // FIXME - what about device with > 256 channels
+    outSize = sizeof(formatDesc);
+    err = AudioDeviceGetProperty( devID, 0,
+        isInput, kAudioDevicePropertyStreamFormatMatch, &outSize, &formatDesc);
+    if( err != noErr )
+    {
+        PRINT_ERR("PaOSX_QueryDeviceInfo: Could not get device format match", err);
+        sSavedHostError = err;
+        return paHostError;
+    }
+
+    if( isInput )
+    {
+        deviceInfo->maxInputChannels = formatDesc.mChannelsPerFrame;
+    }
+    else
+    {
+        deviceInfo->maxOutputChannels = formatDesc.mChannelsPerFrame;
+    }
+
     // Get the device name
     deviceInfo->name = PaOSX_DeviceNameFromID( devID, isInput );
     return 1;
 
 error:
-    if( sampleRates != NULL ) free( sampleRates );
     return 0;
 }
 
 /**********************************************************************/
-static PaError Pa_MaybeQueryDevices( void )
+static PaError PaOSX_MaybeQueryDevices( void )
 {
     if( sNumPaDevices == 0 )
     {
@@ -920,7 +935,7 @@ static void PaOSX_FixVolumeScalars( AudioDeviceID devID, Boolean isInput,
 }
 
 #if 0
-static void DumpDeviceInfo( AudioDeviceID devID, Boolean isInput )
+static void PaOSX_DumpDeviceInfo( AudioDeviceID devID, Boolean isInput )
 {
     OSStatus err = noErr;
     UInt32    dataSize;
@@ -1153,7 +1168,7 @@ static PaError PaOSX_OpenOutputDevice( internalPortAudioStream *past )
     
     hostDeviceInfo = &sDeviceInfos[past->past_OutputDeviceID];
     
-    //DumpDeviceInfo( pahsc->output.audioDeviceID, IS_OUTPUT );
+    //PaOSX_DumpDeviceInfo( pahsc->output.audioDeviceID, IS_OUTPUT );
 
     PaOSX_FixVolumeScalars( pahsc->output.audioDeviceID, IS_OUTPUT,
         hostDeviceInfo->paInfo.maxOutputChannels, 0.1, 0.9 );
@@ -1175,7 +1190,7 @@ static PaError PaOSX_OpenOutputDevice( internalPortAudioStream *past )
     {
         return paInvalidChannelCount; /* Too many channels! */
     }
-    else if( past->past_NumOutputChannels < hostDeviceInfo->paInfo.maxOutputChannels )
+    else
     {
     /* Attempt to set number of channels. */ 
         AudioStreamBasicDescription formatDesc;
@@ -1485,7 +1500,7 @@ PaError PaHost_CloseStream( internalPortAudioStream   *past )
     pahsc = (PaHostSoundControl *) past->past_DeviceData;
     if( pahsc == NULL ) return paNoError;
         
-    //DumpDeviceInfo( sDeviceInfos[past->past_OutputDeviceID].audioDeviceID, IS_OUTPUT );
+    //PaOSX_DumpDeviceInfo( sDeviceInfos[past->past_OutputDeviceID].audioDeviceID, IS_OUTPUT );
 
 #if PA_TRACE_START_STOP
     AddTraceMessage( "PaHost_CloseStream: pahsc_HWaveOut ", (int) pahsc->pahsc_HWaveOut );
@@ -1523,7 +1538,7 @@ PaError PaHost_CloseStream( internalPortAudioStream   *past )
 */
 PaError PaHost_Init( void )
 {
-    return Pa_MaybeQueryDevices();
+    return PaOSX_MaybeQueryDevices();
 }
 
 /*************************************************************************
@@ -1599,14 +1614,14 @@ PaError PaHost_GetTotalBufferFrames( internalPortAudioStream   *past )
 */
 PaDeviceID Pa_GetDefaultInputDeviceID( void )
 {
-    PaError result = Pa_MaybeQueryDevices();
+    PaError result = PaOSX_MaybeQueryDevices();
 	if( result < 0 ) return result;
 	return sDefaultInputDeviceID;
 }
 
 PaDeviceID Pa_GetDefaultOutputDeviceID( void )
 {
-    PaError result = Pa_MaybeQueryDevices();
+    PaError result = PaOSX_MaybeQueryDevices();
 	if( result < 0 ) return result;
 	return sDefaultOutputDeviceID;
 }
