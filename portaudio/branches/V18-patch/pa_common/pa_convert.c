@@ -126,7 +126,7 @@ static void PaConvert_Float32_Int8_Clip(
 	int i;
 	for( i=0; i<numSamples; i++ )
 	{
-        long samp = *sourceBuffer * 127.0f;
+        long samp = (long) (*sourceBuffer * 127.0f);
         CLIP( samp, -0x80, 0x7F );
         *targetBuffer = (char) samp;
         sourceBuffer += sourceStride;
