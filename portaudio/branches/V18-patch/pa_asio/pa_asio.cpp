@@ -66,8 +66,9 @@
        	   		 we try again with the preferred size. Fix an old (never detected?) bug in the buffer adapdation code : S Letz
        	30-06-03 The audio callback was not protected against reentrancy : some drivers (like the Hoontech DSP24) seems to cause this behaviour 
        			 that corrupted the buffer adapdation state and finally caused crashes. The reentrancy state is now checked in bufferSwitchTimeInfo : S Letz 
-       	   		 
-         TO DO :
+       	17-07-03 Correct bug in Pa_ASIO_Convert_Inter_Output : parameter past_InputSampleFormat was used instead of past_OutputSampleFormat : J Maillard, S Letz   		 
+        
+        TO DO :
         
         - Check Pa_StopSteam and Pa_AbortStream
         - Optimization for Input only or Ouput only (really necessary ??)
@@ -1861,7 +1862,7 @@ static void Pa_ASIO_Callback_Output(long index, long framePerBuffer)
                                         	asioDriverInfo.pahsc_hostOutputBufferFrameOffset,
                                         	asioDriverInfo.pahsc_userOutputBufferFrameOffset,
                                         	asioDriverInfo.pahsc_channelInfos[0].type,
-                                        	past->past_InputSampleFormat,
+                                        	past->past_OutputSampleFormat,
                                         	past->past_Flags,
                                         	index);
                 
