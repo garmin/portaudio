@@ -336,12 +336,13 @@ static PaError PaHost_WatchDogProc( PaHostSoundControl   *pahsc )
     
     /* Compare watchdog time with audio and canary thread times. */
     /* Sleep for a while or until thread cancelled. */
-    while( pahsc->pahsc_WatchDogRun ) {
+    while( pahsc->pahsc_WatchDogRun )
+    {
       
         int              delta;
         struct timeval   currentTime;
 
-	usleep( WATCHDOG_INTERVAL_USEC );
+        usleep( WATCHDOG_INTERVAL_USEC );
         gettimeofday( &currentTime, NULL );
 
         /* If audio thread is not advancing, then lower its priority. */
@@ -527,22 +528,22 @@ static PaError Pa_AudioThreadProc( internalPortAudioStream   *past )
         /* Read data from device */
         if(pahsc->pahsc_NativeInputBuffer)
         {
-	  int totalread = 0;
-	  DBUG(("Pa_AudioThreadProc: attempt to read %d bytes\n", pahsc->pahsc_BytesPerInputBuffer));
-	    do 
-	      {
-		bytes_read = read(pahsc->pahsc_InputHandle,
-				  (void *)pahsc->pahsc_NativeInputBuffer + totalread,
-				  pahsc->pahsc_BytesPerInputBuffer - totalread);
+            int totalread = 0;
+            DBUG(("Pa_AudioThreadProc: attempt to read %d bytes\n", pahsc->pahsc_BytesPerInputBuffer));
+            do 
+            {
+                bytes_read = read(pahsc->pahsc_InputHandle,
+                    (void *)pahsc->pahsc_NativeInputBuffer + totalread,
+                    pahsc->pahsc_BytesPerInputBuffer - totalread);
 
-		if (bytes_read < 0)
-		  {
-		    ERR_RPT(("PortAudio: read interrupted!\n"));
-		    break;
-		  }
+                if (bytes_read < 0)
+                {
+                    ERR_RPT(("PortAudio: read interrupted!\n"));
+                    break;
+                }
 
-		totalread += bytes_read;
-	      }while( totalread < pahsc->pahsc_BytesPerInputBuffer);
+                totalread += bytes_read;
+            } while( totalread < pahsc->pahsc_BytesPerInputBuffer);
         }
 
         /* Convert 16 bit native data to user data and call user routine. */
@@ -562,23 +563,23 @@ static PaError Pa_AudioThreadProc( internalPortAudioStream   *past )
         /* Write data to device. */
         if( pahsc->pahsc_NativeOutputBuffer )
         {
-	  int totalwritten = 0;
-	  do 
-	    {
-	      bytes_written = write(pahsc->pahsc_OutputHandle,
-				    (void *)pahsc->pahsc_NativeOutputBuffer,
-				    pahsc->pahsc_BytesPerOutputBuffer);
-	      if( bytes_written < 0 )
-		{
-		  ERR_RPT(("PortAudio: write interrupted!"));
-		  break;
-		}
+            int totalwritten = 0;
+            do 
+            {
+                bytes_written = write(pahsc->pahsc_OutputHandle,
+                    (void *)pahsc->pahsc_NativeOutputBuffer,
+                    pahsc->pahsc_BytesPerOutputBuffer);
+                if( bytes_written < 0 )
+                {
+                    ERR_RPT(("PortAudio: write interrupted!"));
+                    break;
+                }
 
-		totalwritten += bytes_written;
-	    } while( totalwritten < pahsc->pahsc_BytesPerOutputBuffer);
+                totalwritten += bytes_written;
+            } while( totalwritten < pahsc->pahsc_BytesPerOutputBuffer);
         }
 
-	Pa_UpdateStreamTime(pahsc);
+        Pa_UpdateStreamTime(pahsc);
     }
     DBUG(("Pa_AudioThreadProc: left audio loop.\n"));
     
@@ -897,9 +898,9 @@ PaError PaHost_CloseStream( internalPortAudioStream   *past )
         DBUG(("PaHost_CloseStream: attempt to close output device handle = %d\n",
               pahsc->pahsc_OutputHandle ));
 
-	Pa_FlushStream(pahsc->pahsc_OutputHandle);
+        Pa_FlushStream(pahsc->pahsc_OutputHandle);
 
-	err = close(pahsc->pahsc_OutputHandle);
+        err = close(pahsc->pahsc_OutputHandle);
         if( err < 0 )
         {
             ERR_RPT(("PaHost_CloseStream: warning, closing output device failed.\n"));
@@ -913,7 +914,7 @@ PaError PaHost_CloseStream( internalPortAudioStream   *past )
         DBUG(("PaHost_CloseStream: attempt to close input device handle = %d\n",
               pahsc->pahsc_InputHandle ));
 
-	Pa_FlushStream(pahsc->pahsc_InputHandle);
+        Pa_FlushStream(pahsc->pahsc_InputHandle);
 
         err = close(pahsc->pahsc_InputHandle);
         if( err < 0 )
