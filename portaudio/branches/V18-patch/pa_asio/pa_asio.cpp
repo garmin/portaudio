@@ -60,6 +60,7 @@
         01-12-02 Fix Pa_GetDefaultInputDeviceID and Pa_GetDefaultOuputDeviceID result when no driver are available : S Letz
         05-12-02 More debug messages : S Letz
         01-23-03 Increased max channels to 128. Fixed comparison of (OutputChannels > kMaxInputChannels) : P Burk
+        02-17-03 Better termination handling : PaHost_CloseStream is called in PaHost_term is the the stream was not explicitely closed by the application : S Letz
         
         TO DO :
         
@@ -2615,18 +2616,16 @@ PaError PaHost_Term( void )
 	                dev->sampleRates = NULL;
 	               if(dev->name != NULL) PaHost_FreeFastMemory((void *) dev->name, 32);
 	                dev->name = NULL;
-	                
 	        }
 	        
 	        sNumDevices = 0;
-	        
-	         /* Dispose : if not done by Pa_CloseStream	*/
-	        if(ASIODisposeBuffers() != ASE_OK) result = paHostError;        
-	        if(ASIOExit() != ASE_OK) result = paHostError;
-	        
+                
+            /* If the stream has been closed with PaHost_CloseStream, asioDriverInfo.past == null, otherwise close it now */
+	        if(asioDriverInfo.past != NULL) Pa_CloseStream(asioDriverInfo.past);
+	          
 	        /* remove the loaded ASIO driver */
 	        asioDrivers->removeCurrentDriver();
-	    }
+        }
 
         return result;
 }
