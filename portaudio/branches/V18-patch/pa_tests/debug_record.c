@@ -39,7 +39,7 @@
 #include <stdlib.h>
 #include "portaudio.h"
 
-#define SAMPLE_RATE      (22050)
+#define SAMPLE_RATE      (44100)
 #define NUM_SECONDS          (6)
 #define NUM_CHANNELS         (2)
 #define FRAMES_PER_BUFFER   (64)

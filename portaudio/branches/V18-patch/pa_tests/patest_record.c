@@ -40,7 +40,7 @@
 #include "portaudio.h"
 
 /* #define SAMPLE_RATE  (17932) /* Test failure to open with this value. */
-#define SAMPLE_RATE  (22050)
+#define SAMPLE_RATE  (44100)
 #define NUM_SECONDS     (5)
 #define NUM_CHANNELS    (2)
 /* #define DITHER_FLAG     (paDitherOff)  /**/
