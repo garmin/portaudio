@@ -345,7 +345,7 @@ static PaError PaHost_WatchDogProc( PaHostSoundControl   *pahsc )
         usleep( WATCHDOG_INTERVAL_USEC );
         gettimeofday( &currentTime, NULL );
 
-        /* If audio thread is not advancing, then lower its priority. */
+        /* If audio thread is not advancing, then it must be hung so kill it. */
         delta = currentTime.tv_sec - pahsc->pahsc_EntryTime.tv_sec;
         DBUG(("PaHost_WatchDogProc: audio delta = %d\n", delta ));
         if( delta > WATCHDOG_MAX_SECONDS )
@@ -353,7 +353,7 @@ static PaError PaHost_WatchDogProc( PaHostSoundControl   *pahsc )
             goto killAudio;
         }
         
-        /* If canary died, then kill audio and canary. */
+        /* If canary died, then lower audio priority and halt canary. */
         delta = currentTime.tv_sec - pahsc->pahsc_CanaryTime.tv_sec;
         if( delta > WATCHDOG_MAX_SECONDS )
         {
