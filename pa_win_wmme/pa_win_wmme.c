@@ -56,7 +56,7 @@
                refactoring, renaming and fixed a few edge case bugs
  PLB20020612 - added 8000.0 Hz to custom sampling rates array
 */
-
+#pragma warning (disable: 4115)
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
@@ -115,7 +115,7 @@ static  gUnderCallbackCounter = 0;
 
 #define PRINT(x) { printf x; fflush(stdout); }
 #define ERR_RPT(x) PRINT(x)
-#define DBUG(x)  /* PRINT(x) /**/
+#define DBUG(x)  /* PRINT(x) */
 #define DBUGX(x) /* PRINT(x) */
 /************************************************* Definitions ********/
 /**************************************************************
@@ -366,6 +366,7 @@ const PaDeviceInfo* Pa_GetDeviceInfo( PaDeviceID id )
     int i;
     char *s;
 
+    DBUG(( "Pa_GetDeviceInfo( %d )\n", id ));
     if( id < 0 || id >= sNumDevices )
         return NULL;
     if( sDevicePtrs[ id ] != NULL )
@@ -403,6 +404,7 @@ const PaDeviceInfo* Pa_GetDeviceInfo( PaDeviceID id )
         }
         deviceInfo->name = s;
         deviceInfo->maxInputChannels = wic.wChannels;
+        DBUG(( "Pa_GetDeviceInfo: input %s, maxChannels = %d\n", deviceInfo->name, deviceInfo->maxInputChannels ));
         /* Sometimes a device can return a rediculously large number of channels.
          * This happened with an SBLive card on a Windows ME box.
          * If that happens, then force it to 2 channels.  PLB20010413
@@ -460,6 +462,7 @@ const PaDeviceInfo* Pa_GetDeviceInfo( PaDeviceID id )
         }
         deviceInfo->name = s;
         deviceInfo->maxOutputChannels = woc.wChannels;
+        DBUG(( "Pa_GetDeviceInfo: output %s, maxChannels = %d\n", deviceInfo->name, deviceInfo->maxOutputChannels ));
         /* Sometimes a device can return a rediculously large number of channels.
          * This happened with an SBLive card on a Windows ME box.
          * It also happens on Win XP!
@@ -519,12 +522,14 @@ const PaDeviceInfo* Pa_GetDeviceInfo( PaDeviceID id )
             wfx.nChannels = (WORD)deviceInfo->maxOutputChannels;
             wfx.nAvgBytesPerSec = wfx.nChannels * wfx.nSamplesPerSec * sizeof(short);
             wfx.nBlockAlign = (WORD)(wfx.nChannels * sizeof(short));
+            DBUG(( "Pa_GetDeviceInfo: waveOutOpen( ... WAVE_FORMAT_QUERY at SR = %d\n", customSamplingRates[i] ));
             if( waveOutOpen( NULL, outputMmID, &wfx, 0, 0, WAVE_FORMAT_QUERY ) == MMSYSERR_NOERROR )
             {
                 sampleRates[ deviceInfo->numSampleRates++ ] = customSamplingRates[i];
             }
         }
     }
+    DBUG(( "Pa_GetDeviceInfo: done.\n" ));
     sDevicePtrs[ id ] = deviceInfo;
     return deviceInfo;
 
