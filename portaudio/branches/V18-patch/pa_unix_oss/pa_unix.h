@@ -135,6 +135,8 @@ internalPortAudioDevice *Pa_GetInternalDevice( PaDeviceID id );
 PaError Pa_QueryDevices( void );
 PaError Pa_QueryDevice( const char *deviceName, internalPortAudioDevice *pad );
 PaError Pa_SetupDeviceFormat( int devHandle, int numChannels, int sampleRate );
+PaError Pa_SetupInputDeviceFormat( int devHandle, int numChannels, int sampleRate );
+PaError Pa_SetupOutputDeviceFormat( int devHandle, int numChannels, int sampleRate );
 void Pa_SetLatency( int devHandle, int numBuffers, int framesPerBuffer, int channelsPerFrame  );
 void Pa_UpdateStreamTime(PaHostSoundControl *pahsc);
 int Pa_FlushStream(int devHandle);
