@@ -68,14 +68,13 @@ static int patestCallback( void *inputBuffer, void *outputBuffer,
     float *out = (float*)outputBuffer;
     float *in = (float*)inputBuffer;
     int i;
-    int finished = 0;
     (void) outTime; /* Prevent unused variable warnings. */
     (void) inputBuffer;
 
     if( in == NULL ) return 0;
     for( i=0; i<(int)framesPerBuffer; i++ )
     {
-        /* Copy one channel of input to output. */
+        /* Copy one channel of input to stereo output. */
         *out++ = in[data->liveChannel];
         *out++ = in[data->liveChannel];
         in += data->numChannels;
