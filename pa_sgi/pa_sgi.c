@@ -35,14 +35,12 @@ MODIFICATIONS:
   9/23/2001 - Many fixes and changes: POLLIN for input, not POLLOUT!
   7/04/2002 - Implemented multiple user buffers per host buffer to allow clients that 
               request smaller buffersizes.
-
- [v18-0.05] Try to use CVS via the Mac now to upload instead of e-mailing to Phil & Ross.
-
+  3/13/2003 - Fixed clicks in full-duplex (wire) mode. Fixed some uninitialised vars, got rid of
+              all GCC-warnings (-Wall). Tested with MIPS compiler and GCC 3.0.4. on IRIX 6.5 (AL v7).
 TODO:
   - Dynamically switch to 32 bit float as native format when appropriate (let SGI do the conversion), 
     and maybe also the other natively supported formats? (might increase performance)
   - Implement fancy callback block adapter as described in the PDF by Stephane Letz in the ASIO dir.
-  - Do some more tests... (see Makefile).
 
 REFERENCES:
   - IRIX 6.2 man pages regarding SGI AL library.
@@ -57,6 +55,7 @@ REFERENCES:
 #include "../pa_common/pa_host.h"
 #include "../pa_common/pa_trace.h"
 
+#include <errno.h>              /* Needed for int oserror(void);. */
 #include <sys/time.h>
 #include <sys/types.h>
 #include <sys/prctl.h>
@@ -127,11 +126,10 @@ long Pa_GetHostError(void)
 /*----------------------------- BEGIN CPU UTILIZATION MEASUREMENT -----------------*/
 /*                              (copied from source pa_linux_oss/pa_linux_oss.c)   */
 static void Pa_StartUsageCalculation( internalPortAudioStream   *past )
-{
-    struct itimerval itimer;
+{    
     PaHostSoundControl *pahsc = (PaHostSoundControl *) past->past_DeviceData;
     if( pahsc == NULL ) return;
-/* Query system timer for usage analysis and to prevent overuse of CPU. */
+    /* Query system timer for usage analysis and to prevent overuse of CPU. */
     getitimer( ITIMER_REAL, &pahsc->pahsc_EntryTime );
 }
 
@@ -251,7 +249,6 @@ static PaError Pa_sgiQueryDevice(long                     ALdev,  /* (AL_DEFAULT
                                  char*                    name,   /* (for example "SGI AL") */
                                  internalPortAudioDevice* pad)    /* Result written to pad. */
 {
-    int     format;
     long    min, max;                           /* To catch hardware characteristics.       */
     ALseterrorhandler(0);                       /* 0 = turn off the default error handler.  */
     /*--------------------------------------------------------------------------------------*/
@@ -418,25 +415,25 @@ void Pa_SgiAudioProcess(void *v)        /* This function is sproc-ed by PaHost_S
     short                   evtLoop;    /* Reset by parent indirectly, or at local errors.    */
     PaError                 result;
     struct pollfd           PollFD[3];  /* To catch kPollSEMA-, kPollOUT- and kPollIN-events. */
-    internalPortAudioStream *past  = (internalPortAudioStream*)v;  /* Copy void-ptr-argument. */
+    internalPortAudioStream *past = (internalPortAudioStream*)v;   /* Copy void-ptr-argument. */
     PaHostSoundControl      *pahsc;
-    short                   n, inputEvent, outputEvent, semaEvent;    /* .revents are shorts. */
-    short                   *inBuffer, *outBuffer; /* FIX: Only 16 bit for now, may change... */               
+    short                   n, inputEvent, outputEvent, ioEvent, semaEvent = 0;
+    short                   *inBuffer, *outBuffer;      /* Only 16 bit for now, may change... */               
     unsigned int            samplesPerInputUserBuffer, samplesPerOutputUserBuffer;
 
     DBUG(("Entering sproc-thread.\n"));
     if (!past)
         {
-        sPaHostError = paInternalError;                 /* Or paBadStreamPtr ? */
+        sPaHostError = paInternalError;     /* Or paBadStreamPtr ? */
         ERR_RPT(("argument NULL!\n"));
-        goto skip;
+        goto noPast;
         }
     pahsc = (PaHostSoundControl*)past->past_DeviceData;
     if (!pahsc)
         {
-        sPaHostError = paInternalError; /* The only way is to signal error to shared area?!   */
+        sPaHostError = paInternalError;     /* The only way is to signal error to shared area?!   */
         ERR_RPT(("past_DeviceData NULL!\n"));
-        goto skip;                      /* Sproc-ed threads MAY NOT RETURN paInternalError.   */
+        goto noPahsc;                       /* Sproc-ed threads MAY NOT RETURN paInternalError.   */
         }
     /*----------------------------- open AL-ports here, after sproc(): -----------------------*/
     if (past->past_NumInputChannels > 0)                                  /* Open input port. */
@@ -452,7 +449,9 @@ void Pa_SgiAudioProcess(void *v)        /* This function is sproc-ed by PaHost_S
         samplesPerInputUserBuffer = pahsc->pahsc_SamplesPerInputHostBuffer /
                                     pahsc->pahsc_UserBuffersPerHostBuffer;
         }
-     if (past->past_NumOutputChannels > 0)                               /* Open output port. */
+    else
+        samplesPerInputUserBuffer = 0; /* Added 2003. */
+    if (past->past_NumOutputChannels > 0)                               /* Open output port. */
         {       
         pahsc->pahsc_ALportOUT = ALopenport("PA sgi out", "w", pahsc->pahsc_ALconfigOUT);
         if (!pahsc->pahsc_ALportOUT)
@@ -465,7 +464,9 @@ void Pa_SgiAudioProcess(void *v)        /* This function is sproc-ed by PaHost_S
         samplesPerOutputUserBuffer = pahsc->pahsc_SamplesPerOutputHostBuffer /
                                      pahsc->pahsc_UserBuffersPerHostBuffer;
         DBUG(("samplesPerOutputUserBuffer = %d\n", samplesPerOutputUserBuffer));
-        }    
+        }
+    else
+        samplesPerOutputUserBuffer = 0; /* Added 2003. */
     /*-----------------------------------------------------------------------*/
     past->past_IsActive = 1;            /* Wasn't this already done by the calling parent?!   */
     PollFD[kPollIN].fd = ALgetfd(pahsc->pahsc_ALportIN);    /* ALgetfd returns -1 on failures */
@@ -479,8 +480,9 @@ void Pa_SgiAudioProcess(void *v)        /* This function is sproc-ed by PaHost_S
     evtLoop = ((past->past_StopNow | past->past_StopSoon) == 0);
     while (evtLoop)
         {
-        /*---------------------------- SET FILLPOINTS AND WAIT UNTIL SOMETHING HAPPENS: ----------*/
-        if (pahsc->pahsc_InputHostBuffer)         /* Then pahsc_ALportIN should also be there!  */
+        /*----------------------------- SET FILLPOINTS AND WAIT UNTIL SOMETHING HAPPENS: ---------*/
+        if (pahsc->pahsc_InputHostBuffer)           /* Then pahsc_ALportIN should also be there.  */
+            {
             /* For input port, fill point is number of locations in the sample queue that must be */
             /* filled in order to trigger a return from select(). (or poll())                     */
             /* Notice IRIX docs mention number of samples as argument, not number of sampleframes.*/
@@ -490,15 +492,20 @@ void Pa_SgiAudioProcess(void *v)        /* This function is sproc-ed by PaHost_S
                 sPaHostError = paInternalError;         /* (Using exit(-1) would be a bit rude.)  */
                 goto skip;
                 }
-        if (pahsc->pahsc_OutputHostBuffer)        /* Then pahsc_ALportOUT should also be there! */
+            }
+        /* 'else' added march 2003: set only one of both fillpoints: input or output. When    */
+        /* setting both fillpoints (as in earlier version) clicks occur at full duplex-mode.  */
+        else if (pahsc->pahsc_OutputHostBuffer)     /* Then pahsc_ALportOUT should also be there. */
+            {
             /* For output port, fill point is number of locations that must be free in order to   */
             /* wake up from select(). (or poll())                                                 */
             if (ALsetfillpoint(pahsc->pahsc_ALportOUT, pahsc->pahsc_SamplesPerOutputHostBuffer))
                 {
                 ERR_RPT(("ALsetfillpoint() for ALportOUT failed.\n"));
-                sPaHostError = paInternalError;         /* (Using exit(-1) would be a bit rude.)  */
+                sPaHostError = paInternalError;
                 goto skip;
-                }                   /* poll() with timeout=-1 makes it block until a requested    */
+                }
+            }                       /* poll() with timeout=-1 makes it block until a requested    */
         poll(PollFD, 3, -1);        /* event occurs or until call is interrupted. If fd-value in  */
                                     /* array <0, events is ignored and revents is set to 0.       */
         /*---------------------------- MESSAGE-EVENT FROM PARENT THREAD: -------------------------*/
@@ -523,13 +530,13 @@ void Pa_SgiAudioProcess(void *v)        /* This function is sproc-ed by PaHost_S
                 }
             }
         outputEvent = PollFD[kPollOUT].revents & POLLOUT;
-        /*------------------------------------- USER-CALLBACK-ROUTINE: -----------------------------------*/
-        if (inputEvent | outputEvent)           /* (Bitwise is ok.) */
-            { /* To be sure we that really DID input-transfer or gonna DO output-transfer, and that it is */
-              /* not just "sema"- (i.e. user)-event, or some other system-event that awakened the poll(). */
+        ioEvent = (inputEvent | outputEvent);   /* Binary or is ok. */
+        /*------------------------------------- USER-CALLBACK-ROUTINE: -----------------------------------*/       
+        if (ioEvent)                            /* Always true? Or can some other system-event awaken the */
+            {                                   /* poll? Sure it wasn't just a "sema"- (i.e. user)-event? */
             Pa_StartUsageCalculation(past);                         /* Convert 16 bit native data to      */
                                                                     /* user data and call user routine.   */
-            inBuffer  = pahsc->pahsc_InputHostBuffer;               /* Short pointers for now, care! */
+            inBuffer  = pahsc->pahsc_InputHostBuffer;               /* Short pointers for now, care!      */
             outBuffer = pahsc->pahsc_OutputHostBuffer;
             n = pahsc->pahsc_UserBuffersPerHostBuffer;              /* 'n' may never start at NULL ! */
             do  {
@@ -540,10 +547,10 @@ void Pa_SgiAudioProcess(void *v)        /* This function is sproc-ed by PaHost_S
                 outBuffer += samplesPerOutputUserBuffer;
                 } while (--n);
             Pa_EndUsageCalculation(past);
-            }                 
-        /*------------------------------------- FREE-EVENT FROM OUTPUT BUFFER: ---------------------------*/
-        if (outputEvent)        /* Don't need to check (pahsc->pahsc_OutputHostBuffer)  */
-            {                   /* because if filedescriptor not there, no event for it.  */
+            }
+        /*------------------------------------ FREE-EVENT FROM OUTPUT BUFFER: ---------------------------*/
+        if (pahsc->pahsc_OutputHostBuffer && ioEvent)   /* Don't wait for outputEvent solely (that may cause clicks). */
+            {                                           /* Just assume it's time to write, outputEvent may not yet be there. */
             if (ALwritesamps(pahsc->pahsc_ALportOUT, (void*)pahsc->pahsc_OutputHostBuffer,
                              pahsc->pahsc_SamplesPerOutputHostBuffer))
                 {
@@ -569,12 +576,14 @@ skip:
         else
             pahsc->pahsc_ALportOUT = (ALport)0;
         }
+noPahsc:
     past->past_IsActive = 0;
     if (semaEvent)
         {
         uspsema(SendSema);  /* StopEngine() was still waiting for this acknowledgement. */
         usvsema(RcvSema);   /* (semaEvent initialized with 0.)          */
         }
+noPast:
     DBUG(("Leaving sproc-thread.\n"));
 }
 
@@ -683,6 +692,8 @@ another process is currently using input at %ld Hz.\n", sr, pvbuf[1]));
         if (ALsetchannels (pahsc->pahsc_ALconfigIN, (long)(past->past_NumInputChannels)))
             goto sgiError;                              /* Returns 0 on success, -1 on failure. */
         }
+    else
+        pahsc->pahsc_InputHostBuffer = (short*)NULL;    /* Added 2003! Is checked in callback-routine. */
     /*---------------------------------------------------- SET OUTPUT CONFIGURATION: ------------------------*/
     if (past->past_NumOutputChannels > 0)               /* CARE: padOUT/IN may NOT be NULL if Channels <= 0! */
         {                                               /* We use padOUT/IN later on, or at least 1 of both. */     
@@ -735,6 +746,8 @@ another process is currently using output at %ld Hz.\n", sr, pvbuf[5]));
         if (ALsetchannels (pahsc->pahsc_ALconfigOUT, (long)(past->past_NumOutputChannels)))
             goto sgiError;
         }
+    else
+        pahsc->pahsc_OutputHostBuffer = (short*)NULL;
     /*----------------------------------------------- TEST DEVICE ID's: --------------------*/
     if ((past->past_OutputDeviceID != past->past_InputDeviceID) &&          /* Who SETS these devive-numbers? */
         (past->past_NumOutputChannels > 0) && (past->past_NumInputChannels > 0))
@@ -822,8 +835,6 @@ PaError PaHost_StartEngine(internalPortAudioStream *past)
 /*------------------------------------------------------------------------------*/
 PaError PaHost_StopEngine(internalPortAudioStream *past, int abort)
 {
-    int                 hres;
-    long                timeOut;
     PaError             result = paNoError;
     PaHostSoundControl  *pahsc;
     
@@ -979,10 +990,10 @@ PaError PaHost_Term(void)   /* Frees all of the linked audio-devices.  */
         DBUG(("PaHost_Term: freeing %s\n", pad->pad_DeviceName));
         nxt = pad->pad_Next;
         PaHost_FreeFastMemory(pad, sizeof(internalPortAudioDevice));
-        pad = nxt;              /* PaHost_Init allocated this FAST MEM.*/
+        pad = nxt;              /* PaHost_Init allocated this fast mem.*/
         }
     sDeviceList = (internalPortAudioDevice*)NULL;
-    return 0;                           /* Got rid of   sNumDevices=0; */
+    return 0;
 }
 
 /***********************************************************************/
