@@ -91,6 +91,7 @@
               Use kAudioDevicePropertyStreamFormatMatch to determine max channels.
  02.03.2003 - Phil Burk - always use AudioConverters so that we can adapt when format changes.
               Synchronize with device when format changes.
+ 02.13.2003 - Phil Burk - scan for maxChannels because FormatMatch won't tell us.
 
 TODO:
 */
@@ -515,6 +516,66 @@ static int PaOSX_ScanDevices( Boolean isInput )
     return numAdded;
 }
 
+/*************************************************************************
+** Determine the maximum number of channels a device will support.
+** @return maxChannels or negative error.
+*/
+static int PaOSX_GetMaxChannels( AudioDeviceID devID, Boolean isInput )
+{
+    OSStatus         err;
+    UInt32           outSize;
+    AudioStreamBasicDescription formatDesc;
+    int              maxChannels;
+    int              numChannels;
+    int              channelOffset;
+    Boolean          gotMax;
+
+	// Scan to find highest matching format.
+    // Unfortunately some devices won't just return maxChannels for the match.
+    // For example, some 8 channel devices return 2 when given 256 as input.
+    gotMax = false;
+    maxChannels = 0;
+    channelOffset = 2;
+    while( !gotMax && (channelOffset <= 1024) )
+    {
+    
+        memset( &formatDesc, 0, sizeof(formatDesc));
+        numChannels = maxChannels + channelOffset;
+        DBUG(("PaOSX_GetMaxChannels: try numChannels = %d = %d + %d\n",
+            numChannels, maxChannels, channelOffset ));
+        formatDesc.mChannelsPerFrame = numChannels;
+        outSize = sizeof(formatDesc);
+#if 0
+        // This hack is for debugging the search algorithm.
+        err = 0;
+        if (numChannels > 22 ) formatDesc.mChannelsPerFrame = 2;
+#else
+        err = AudioDeviceGetProperty( devID, 0,
+            isInput, kAudioDevicePropertyStreamFormatMatch, &outSize, &formatDesc);
+#endif
+        if( (err != noErr) || (formatDesc.mChannelsPerFrame != numChannels) )
+        {
+            if( channelOffset == 2 )
+            {
+            // That's about as close as we can get.
+                gotMax = true;
+            }
+            else
+            {
+            // Slow down scan so we can fine tune maxChannels.
+                channelOffset = 2;
+            }
+        }
+        else
+        {
+            // This value worked so we have a new candidate for maxChannels.
+            maxChannels = numChannels;
+            // Scan geometrically to speed up search on big devices.
+        	channelOffset *= 2;
+        }
+    }
+    return maxChannels;
+}
 
 /*************************************************************************
 ** Try to fill in the device info for this device.
@@ -530,6 +591,7 @@ static int PaOSX_QueryDeviceInfo( PaHostDeviceInfo *hostDeviceInfo, int coreDevi
     AudioStreamBasicDescription formatDesc;
     AudioDeviceID    devID;
     PaDeviceInfo    *deviceInfo = &hostDeviceInfo->paInfo;
+    int              maxChannels;
 
     deviceInfo->structVersion = 1;
     deviceInfo->maxInputChannels = 0;
@@ -541,7 +603,7 @@ static int PaOSX_QueryDeviceInfo( PaHostDeviceInfo *hostDeviceInfo, int coreDevi
     devID = sCoreDeviceIDs[ coreDeviceIndex ];
     hostDeviceInfo->audioDeviceID = devID;
     DBUG(("PaOSX_QueryDeviceInfo: coreDeviceIndex = %d, devID = %d, isInput = %d\n",
-        coreDeviceIndex, devID, isInput ));
+        coreDeviceIndex, (int) devID, isInput ));
         
     // Get data format info from the device.
     outSize = sizeof(formatDesc);
@@ -549,10 +611,8 @@ static int PaOSX_QueryDeviceInfo( PaHostDeviceInfo *hostDeviceInfo, int coreDevi
     // This just may not be an appropriate device for input or output so leave quietly.
     if( (err != noErr)  || (formatDesc.mChannelsPerFrame == 0) ) goto error;
     
-    DBUG(("PaOSX_QueryDeviceInfo: mFormatID = 0x%x\n", formatDesc.mFormatID));
-    DBUG(("PaOSX_QueryDeviceInfo: kAudioFormatLinearPCM = 0x%x\n", kAudioFormatLinearPCM));
-    DBUG(("PaOSX_QueryDeviceInfo: mFormatFlags = 0x%x\n", formatDesc.mFormatFlags));
-    DBUG(("PaOSX_QueryDeviceInfo: kLinearPCMFormatFlagIsFloat = 0x%x\n", kLinearPCMFormatFlagIsFloat));
+    DBUG(("PaOSX_QueryDeviceInfo: mFormatID = 0x%x\n", (unsigned int) formatDesc.mFormatID));
+    DBUG(("PaOSX_QueryDeviceInfo: mFormatFlags = 0x%x\n",(unsigned int)  formatDesc.mFormatFlags));
 
     // Right now the Core Audio headers only define one formatID: LinearPCM
     // Apparently LinearPCM must be Float32 for now.
@@ -566,29 +626,18 @@ static int PaOSX_QueryDeviceInfo( PaHostDeviceInfo *hostDeviceInfo, int coreDevi
         PRINT(("PaOSX_QueryDeviceInfo: ERROR - not LinearPCM & Float32!!!\n"));
         return paSampleFormatNotSupported;
     }
-
-    // Determine maximum number of channels supported.
-    memset( &formatDesc, 0, sizeof(formatDesc));
-    formatDesc.mChannelsPerFrame = 256; // FIXME - what about device with > 256 channels
-    outSize = sizeof(formatDesc);
-    err = AudioDeviceGetProperty( devID, 0,
-        isInput, kAudioDevicePropertyStreamFormatMatch, &outSize, &formatDesc);
-    if( err != noErr )
-    {
-        PRINT_ERR("PaOSX_QueryDeviceInfo: Could not get device format match", err);
-        sSavedHostError = err;
-        return paHostError;
-    }
-
+    
+    maxChannels = PaOSX_GetMaxChannels( devID, isInput );
+    if( maxChannels <= 0 ) goto error;
     if( isInput )
     {
-        deviceInfo->maxInputChannels = formatDesc.mChannelsPerFrame;
+        deviceInfo->maxInputChannels = maxChannels;
     }
     else
     {
-        deviceInfo->maxOutputChannels = formatDesc.mChannelsPerFrame;
+        deviceInfo->maxOutputChannels = maxChannels;
     }
-
+    
     // Get the device name
     deviceInfo->name = PaOSX_DeviceNameFromID( devID, isInput );
     return 1;
