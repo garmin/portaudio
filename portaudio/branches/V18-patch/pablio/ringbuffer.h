@@ -88,7 +88,7 @@ long RingBuffer_AdvanceWriteIndex( RingBuffer *rbuf, long numBytes );
 /* Get address of region(s) from which we can read data.
 ** If the region is contiguous, size2 will be zero.
 ** If non-contiguous, size2 will be the size of second region.
-** Returns room available to be written or numBytes, whichever is smaller.
+** Returns room available to be read or numBytes, whichever is smaller.
 */
 long RingBuffer_GetReadRegions( RingBuffer *rbuf, long numBytes,
                                 void **dataPtr1, long *sizePtr1,
