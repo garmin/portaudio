@@ -1,25 +1,34 @@
-# Make PortAudio for Silicon Graphics IRIX 6.2 - 6.5.
-# Pieter suurmond, march 13, 2003. (pa-V18-patch).
-# Tested again under IRIX 6.5 with both GCC and MIPS compilers.
+# Makefile for pa_sgi. PortAudio for Silicon Graphics IRIX 6.2-6.5.
+# Pieter suurmond, march 15, 2003. (pa-V18-patch).
+# Tested under IRIX 6.5 with both GCC and MIPS compilers.
 # Based on SGI-specific sproc()-method to spawn children, not on POSIX-threads.
 
+# Choose compiler in combination with options:
+
+CC = cc
+CFLAGS = -O2
+
+# Possible options with MIPSpro compiler are: -32, -o32, -n32, -64,
+# -mips1, -mips2, -mips3, -mips4, etc. Use -g, -g2, -g3 for debugging. 
+# For GCC, use -Wall. And use for example -O2 or -O3 for better optimization:
+
+#CC = gcc
+#CFLAGS = -O2 -Wall
+
 # Instead of "-lpthread", as with linux, just the audio- and math-library for SGI:
+
 LIBS = -laudio -lm
 
+# So sourcefiles can find included headerfiles in pa_common:
 CDEFINES = -I../pa_common
 
-# Possible CFLAGS with MIPSpro compiler are: -32, -o32, -n32, -64,
-# -mips1, -mips2, -mips3, -mips4, etc. Use -g, -g2, -g3 for debugging. 
-# For GCC, use -Wall.
-# And use for example -O2 or -O3 for better optimization:
-CFLAGS = -O2 -Wall
 PASRC = ../pa_common/pa_lib.c pa_sgi.c
 PAINC = ../pa_common/portaudio.h
 
 # Tests performed on SGI Indy with R5000 @ 180MHz running IRIX 6.5:
 # Used GCC compiler version 3.0.4. and MIPS.
 
-#TESTC = $(PASRC) ../pa_tests/patest_record.c    ## OK GCC march 2003 (MIPS sees errors in patest_record.c, refuses compilation).
+TESTC = $(PASRC) ../pa_tests/patest_record.c    ## OK GCC march 2003 (MIPS sees errors in patest_record.c, refuses compilation).
 #TESTC = $(PASRC) ../pa_tests/patest_latency.c   ## OK GCC march 2003. (MIPS doesn't like //)
 #TESTC = $(PASRC) ../pa_tests/patest_longsine.c  ## OK GCC march 2003.
 #TESTC = $(PASRC) ../pa_tests/patest_wire.c      ## OK GCC Click free now. march 2003.
@@ -46,9 +55,8 @@ TESTH   = $(PAINC)
 
 all: patest
 
-# "cc" for the MIPSpro compiler, may be changed to "gcc" for the GNU compiler:
 patest: $(TESTC) $(TESTH) Makefile
-	gcc $(CFLAGS) $(TESTC) $(CDEFINES) $(LIBS) -o patest
+	$(CC) $(CFLAGS) $(TESTC) $(CDEFINES) $(LIBS) -o patest
 
 run: patest
 	./patest
