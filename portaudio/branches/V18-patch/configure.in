@@ -66,7 +66,7 @@ case "${host_os}" in
                 ,
                 AC_MSG_ERROR([libpthread not found!]))
 
-	OTHER_OBJS="pa_unix_oss/pa_unix_oss.o";
+	OTHER_OBJS="pa_unix_oss/pa_unix_oss.o pa_unix_oss/pa_unix.o";
 	LIBS="-lm -lpthread";
 	PADLL="libportaudio.so";
 	SHARED_FLAGS="-shared";

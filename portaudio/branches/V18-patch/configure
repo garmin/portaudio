@@ -1971,7 +1971,7 @@ echo "$as_me: error: libpthread not found!" >&2;}
    { (exit 1); exit 1; }; }
 fi
 
-	OTHER_OBJS="pa_unix_oss/pa_unix_oss.o";
+	OTHER_OBJS="pa_unix_oss/pa_unix_oss.o pa_unix_oss/pa_unix.o";
 	LIBS="-lm -lpthread";
 	PADLL="libportaudio.so";
 	SHARED_FLAGS="-shared";
