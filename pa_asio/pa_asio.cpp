@@ -67,7 +67,8 @@
        	30-06-03 The audio callback was not protected against reentrancy : some drivers (like the Hoontech DSP24) seems to cause this behaviour 
        			 that corrupted the buffer adapdation state and finally caused crashes. The reentrancy state is now checked in bufferSwitchTimeInfo : S Letz 
        	17-07-03 Correct bug in Pa_ASIO_Convert_Inter_Output : parameter past_InputSampleFormat was used instead of past_OutputSampleFormat : J Maillard, S Letz   		 
-        
+        25-07-03 Use of atomic operations for reenterCounter management on Windows, need to be implemented on MacOS9 : S Letz   		 
+       
         TO DO :
         
         - Check Pa_StopSteam and Pa_AbortStream
@@ -159,7 +160,6 @@ typedef struct PaHostSoundControl
         bool           stopped;
         
         ASIOCallbacks   pahsc_asioCallbacks;
-        
          
         int32   pahsc_userInputBufferFrameOffset;   // Position in Input user buffer
         int32   pahsc_userOutputBufferFrameOffset;  // Position in Output user buffer
@@ -302,7 +302,6 @@ unsigned long get_sys_reference_time();
 #define max(a,b) ((a)>=(b)?(a):(b))
 #endif
 
-
 static bool Pa_ASIO_loadAsioDriver(char *name)
 {
 	#ifdef	WINDOWS
@@ -311,7 +310,6 @@ static bool Pa_ASIO_loadAsioDriver(char *name)
 	return loadAsioDriver(name);
 }
  
-
 
 // Utilities for alignement buffer size computation
 static int PGCD (int a, int b) {return (b == 0) ? a : PGCD (b,a%b);}
@@ -575,8 +573,7 @@ static PaError Pa_ASIO_QueryDeviceInfo( internalPortAudioDevice * ipad )
                             
                             sNumDevices++;
                         }
-		                   
-                    }
+	                }
                }
         }
                     
@@ -669,6 +666,17 @@ long asioMessages(long selector, long value, void* message, double* opt)
         return ret;
 }
 
+//----------------------------------------------------------------------------------
+// Atomic increment and decrement operations
+#if MAC
+	/* need to be implemented on Mac */
+	inline long Pa_AtomicIncrement(long* v) {return ++(*v);}
+	inline long Pa_AtomicDecrement(long* v) {return --(*v);}
+#elif WINDOWS
+	inline long Pa_AtomicIncrement(long* v) {return InterlockedIncrement(v);}
+	inline long Pa_AtomicDecrement(long* v) {return InterlockedDecrement(v);}
+#endif
+
 
 //----------------------------------------------------------------------------------
 // conversion from 64 bit ASIOSample/ASIOTimeStamp to double float
@@ -726,9 +734,9 @@ static ASIOTime *bufferSwitchTimeInfo(ASIOTime *timeInfo, long index, ASIOBool p
         
         // Keep sample position
 	    asioDriverInfo.pahsc_NumFramesDone = timeInfo->timeInfo.samplePosition.lo;
-        
+ 
         // Reentrancy control
-        if( ++asioDriverInfo.reenterCount) {
+        if(Pa_AtomicIncrement(&asioDriverInfo.reenterCount)) {
         	asioDriverInfo.reenterError++;
         	DBUG(("bufferSwitchTimeInfo : reentrancy detection = %d\n", asioDriverInfo.reenterError));
        		return 0L;
@@ -752,7 +760,7 @@ static ASIOTime *bufferSwitchTimeInfo(ASIOTime *timeInfo, long index, ASIOBool p
 	                // Finally if the driver supports the ASIOOutputReady() optimization, do it here, all data are in place
 	                if (asioDriverInfo.pahsc_postOutput) ASIOOutputReady();
 	       
-	        }else {
+	        }else{
 	                
 	                /* CPU usage */
 	                Pa_StartUsageCalculation(asioDriverInfo.past);
@@ -768,7 +776,7 @@ static ASIOTime *bufferSwitchTimeInfo(ASIOTime *timeInfo, long index, ASIOBool p
 	                Pa_EndUsageCalculation(asioDriverInfo.past);
 	        }
         
-       	} while(asioDriverInfo.reenterCount--);
+       	} while(Pa_AtomicDecrement(&asioDriverInfo.reenterCount) >= 0);
         
         return 0L;
 }
