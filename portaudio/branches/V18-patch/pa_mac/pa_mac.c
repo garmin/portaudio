@@ -219,6 +219,7 @@ static PaError PaMac_BackgroundManager( internalPortAudioStream   *past, int ind
 long PaHost_GetTotalBufferFrames( internalPortAudioStream   *past );
 static int     Mac_IsVirtualMemoryOn( void );
 static void    PToCString(unsigned char* inString, char* outString);
+static void    CToPString(char *inString, unsigned char* outString);
 char *MultiBuffer_GetNextWriteBuffer( MultiBuffer *mbuf );
 char *MultiBuffer_GetNextReadBuffer( MultiBuffer *mbuf );
 int   MultiBuffer_GetNextReadIndex( MultiBuffer *mbuf );
@@ -282,6 +283,23 @@ static void PToCString(unsigned char* inString, char* outString)
     for(i=0; i<inString[0]; i++)  /* convert Pascal to C string */
         outString[i] = inString[i+1];
     outString[i]=0;
+}
+
+/*************************************************************************
+** String Utility by Dominic Mazzoni
+*/
+static void CToPString(char* inString, unsigned char* outString)
+{
+    long len = strlen(inString);
+    long i;
+
+    if (len > 255)
+        len = 255;
+
+    /* Length is stored in first char of Pascal string */
+    outString[0] = (unsigned char)len;
+    for(i=0; i<len; i++)
+        outString[i+1] = inString[i];
 }
 
 /*************************************************************************/
@@ -1129,7 +1147,7 @@ PaError PaHost_OpenStream( internalPortAudioStream   *past )
         long    tempL;
         Fixed   tempF;
         long    mRefNum;
-        unsigned char noname = 0; /* FIXME - use real device names. */
+        Str255 namePString;
 #if TARGET_API_MAC_CARBON
         pahsc->pahsc_InputCompletionProc = NewSICompletionUPP((SICompletionProcPtr)PaMac_InputCompletionProc);
 #else
@@ -1148,8 +1166,10 @@ PaError PaHost_OpenStream( internalPortAudioStream   *past )
         }
         pahsc->pahsc_InputMultiBuffer.numBuffers = pahsc->pahsc_NumHostBuffers;
 
-        err = SPBOpenDevice( (const unsigned char *) &noname, siWritePermission, &mRefNum); /* FIXME - use name so we get selected device */
-        // FIXME err = SPBOpenDevice( (const unsigned char *) sDevices[past->past_InputDeviceID].pad_Info.name, siWritePermission, &mRefNum);
+        // err = SPBOpenDevice( (const unsigned char *) &noname, siWritePermission, &mRefNum);
+        CToPString((char *)sDevices[past->past_InputDeviceID].pad_Info.name, namePString);
+        err = SPBOpenDevice(namePString, siWritePermission, &mRefNum);
+
         if (err) goto error;
         pahsc->pahsc_InputRefNum = mRefNum;
         DBUG(("PaHost_OpenStream: mRefNum = %d\n", mRefNum ));
