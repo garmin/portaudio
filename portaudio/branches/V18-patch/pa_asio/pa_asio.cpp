@@ -68,7 +68,8 @@
        			 that corrupted the buffer adapdation state and finally caused crashes. The reentrancy state is now checked in bufferSwitchTimeInfo : S Letz 
        	17-07-03 Correct bug in Pa_ASIO_Convert_Inter_Output : parameter past_InputSampleFormat was used instead of past_OutputSampleFormat : J Maillard, S Letz   		 
         25-07-03 Use of atomic operations for reenterCounter management on Windows, need to be implemented on MacOS9 : S Letz   		 
-       
+        14-08-03 OutTime value in the audio callback was not updated correctly : S Letz   		 
+      
         TO DO :
         
         - Check Pa_StopSteam and Pa_AbortStream
@@ -1798,6 +1799,8 @@ static void Pa_ASIO_Callback_Input(long index)
                         /* Call PortAudio callback */
                         userResult = asioDriverInfo.past->past_Callback(past->past_InputBuffer, past->past_OutputBuffer,
                                 past->past_FramesPerUserBuffer,past->past_FrameCount,past->past_UserData );
+                                
+                        past->past_FrameCount += (PaTimestamp) past->past_FramesPerUserBuffer;        
                
 		                /* User callback has asked us to stop in the middle of the host buffer  */
 		                if( userResult != 0) {
