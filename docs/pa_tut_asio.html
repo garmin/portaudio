@@ -32,11 +32,10 @@ Compiling for ASIO (Windows or Macintosh)</h2>
 an ASIO application, you must first <a href="http://www.steinberg.net/developers/ASIO2SDKAbout.phtml">download
 the ASIO SDK</a> from Steinberg. You also need to obtain ASIO drivers from
 the manufacturer of your audio hardware.
-<p>Note: there is a bug in the <b>Macintosh</b> ASIO code. Mac users should
-read the file "pa_asio:readme_asio_sdk_patch.txt" for information on how
-to fix the bug.
 <p>Note: I am using '/' as a file separator below. On Macintosh replace
 '/' with ':'. On Windows, replace '/' with '\'.
+<p>You may try compiling the "pa_tests/patest_saw.c" file first because
+it is the simplest.
 <p>Several files are common to all PortAudio implementations. Add the following
 source files to your project:
 <blockquote>pa_common/pa_lib.c
@@ -52,14 +51,38 @@ and also these files from the ASIO SDK downloaded from Steinberg:
 host/asiodrivers.cpp
 host/asiolist.cpp</pre>
 </blockquote>
-and add these directories to the path for include files
+and add these directories to the path for include files:
 <blockquote>
-<pre>asiosdk2/common
-asiosdk2/host
-asiosdk2/host/pc&nbsp;&nbsp; (for <b>Windows</b> only)</pre>
+<pre><tt>asiosdk2/common
+asiosdk2/host</tt></pre>
 </blockquote>
-also (on <b>Windows</b> systems only) link with the system library "<b>winmm.lib</b>".
-For MS Visual C++:
+</blockquote>
+
+<h3>
+Macintosh Specific</h3>
+
+<blockquote>Note: there is a bug in the <b>Macintosh</b> ASIO code. Mac
+users should read the file "pa_asio:readme_asio_sdk_patch.txt" for information
+on how to fix the bug.
+<p>Add the following source code files:</blockquote>
+
+<blockquote>
+<blockquote>host/mac/asioshlib.cpp&nbsp;<br>
+host/mac/codefragements.cpp</blockquote>
+The ASIO drivers should be in a folder called "ASIO Drivers" beneath your
+application.</blockquote>
+
+<h3>
+Windows Specific</h3>
+
+<blockquote>Add this directory to the path for include files:</blockquote>
+
+<blockquote>
+<blockquote><tt>asiosdk2/host/pc</tt></blockquote>
+</blockquote>
+
+<blockquote>and link with the system library "<b>winmm.lib</b>". For MS
+Visual C++:
 <ul>
 <li>
 select "Settings..." from the "Project" menu,</li>
@@ -77,8 +100,7 @@ select the "Link" tab,</li>
 enter "winmm.lib", without quotes, as the first item in the "Object/library
 modules:" field.</li>
 </ul>
-You may try compiling the "pa_tests/patest_saw.c" file first because it
-is the simplest.</blockquote>
+</blockquote>
 <font size=+2><a href="http://www.portaudio.com/">home</a> |
 <a href="pa_tutorial.html">contents</a>
 | <a href="pa_tut_over.html">previous</a> |&nbsp; <a href="pa_tut_callback.html">next</a></font>
