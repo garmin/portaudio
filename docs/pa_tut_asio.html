@@ -29,7 +29,7 @@ PortAudio Tutorial</h1></center>
 Compiling for ASIO (Windows or Macintosh)</h2>
 
 <blockquote>ASIO is a low latency audio API from Steinberg. To compile
-an ASIO application, you must first <a href="http://www.steinberg.net/developers/ASIO2SDKAbout.phtml">download
+an ASIO application, you must first <a href="http://www.steinberg.net/en/ps/support/3rdparty/">download
 the ASIO SDK</a> from Steinberg. You also need to obtain ASIO drivers from
 the manufacturer of your audio hardware.
 <p>Note: I am using '/' as a file separator below. On Macintosh replace
@@ -45,17 +45,6 @@ To use ASIO with the PortAudio library add the following:
 <blockquote>
 <pre>pa_asio/pa_asio.cpp</pre>
 </blockquote>
-and also these files from the ASIO SDK downloaded from Steinberg:
-<blockquote>
-<pre>common/asio.cpp
-host/asiodrivers.cpp
-host/asiolist.cpp</pre>
-</blockquote>
-and add these directories to the path for include files:
-<blockquote>
-<pre><tt>asiosdk2/common
-asiosdk2/host</tt></pre>
-</blockquote>
 </blockquote>
 
 <h3>
@@ -64,21 +53,32 @@ Macintosh Specific</h3>
 <blockquote>Note: there is a bug in the <b>Macintosh</b> ASIO code. Mac
 users should read the file "pa_asio:readme_asio_sdk_patch.txt" for information
 on how to fix the bug.
-<p>Add the following source code files:</blockquote>
+<p>Add these files from the ASIO SDK downloaded from Steinberg:</blockquote>
 
 <blockquote>
-<blockquote>host/mac/asioshlib.cpp&nbsp;<br>
-host/mac/codefragements.cpp</blockquote>
+<blockquote><tt>host/asiodrivers.cpp</tt>
+<br><tt>host/mac/asioshlib.cpp</tt>
+<br><tt>host/mac/codefragements.cpp</tt></blockquote>
 The ASIO drivers should be in a folder called "ASIO Drivers" beneath your
 application.</blockquote>
 
 <h3>
 Windows Specific</h3>
 
-<blockquote>Add this directory to the path for include files:</blockquote>
+<blockquote>Add these files from the ASIO SDK downloaded from Steinberg:</blockquote>
 
 <blockquote>
-<blockquote><tt>asiosdk2/host/pc</tt></blockquote>
+<blockquote><tt>host/asiodrivers.cpp</tt>
+<br><tt>host/asiolist.cpp</tt>
+<br><tt>common/asio.cpp</tt></blockquote>
+</blockquote>
+
+<blockquote>Add these directories to the path for include files:</blockquote>
+
+<blockquote>
+<blockquote><tt>host</tt>
+<br><tt>host/pc</tt>
+<br><tt>common</tt></blockquote>
 </blockquote>
 
 <blockquote>and link with the system library "<b>winmm.lib</b>". For MS
