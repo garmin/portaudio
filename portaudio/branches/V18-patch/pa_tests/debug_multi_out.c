@@ -1,7 +1,7 @@
 /*
  * $Id$
  * debug_multi_out.c
- * Play a different sine wave on each channels,
+ * Output different numbers on each channels for step debugging,
  * using the Portable Audio api.
  *
  * Author: Phil Burk  http://www.softsynth.com
@@ -51,7 +51,6 @@
 typedef struct
 {
     int      numChannels;
-    double   phases[MAX_CHANNELS];
 }
 paTestData;
 
@@ -75,11 +74,7 @@ static int patestCallback( void *inputBuffer, void *outputBuffer,
         for( channelIndex=0; channelIndex<data->numChannels; channelIndex++ )
         {
             /* Output sine wave on every channel. */
-            *out++ = (float) sin(data->phases[channelIndex]);
-
-            /* Play each channel at a higher frequency. */
-            data->phases[channelIndex] += FREQ_INCR * (4 + channelIndex);
-            if( data->phases[channelIndex] >= (2.0 * M_PI) ) data->phases[channelIndex] -= (2.0 * M_PI);
+            *out++ = (float) ((channelIndex + 1) * 0.1);
         }
     }
 
@@ -93,7 +88,7 @@ int main(void)
     PaError err;
     const PaDeviceInfo *pdi;
     paTestData data = {0};
-    printf("PortAudio Test: output sine wave on each channel.\n" );
+    printf("PortAudio Test: output channel number on each channel.\n" );
 
     err = Pa_Initialize();
     if( err != paNoError ) goto error;
