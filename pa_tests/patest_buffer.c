@@ -57,14 +57,14 @@ typedef struct
 paTestData;
 PaError TestOnce( int buffersize );
 
-static int patest1Callback( void *inputBuffer, void *outputBuffer,
+static int paSineCallback( void *inputBuffer, void *outputBuffer,
                             unsigned long framesPerBuffer,
                             PaTimestamp outTime, void *userData );
 /* This routine will be called by the PortAudio engine when audio is needed.
 ** It may called at interrupt level on some machines so don't do anything
 ** that could mess up the system like calling malloc() or free().
 */
-static int patest1Callback( void *inputBuffer, void *outputBuffer,
+static int paSineCallback( void *inputBuffer, void *outputBuffer,
                             unsigned long framesPerBuffer,
                             PaTimestamp outTime, void *userData )
 {
@@ -77,8 +77,6 @@ static int patest1Callback( void *inputBuffer, void *outputBuffer,
 
     if( data->sampsToGo < framesPerBuffer )
     {
-        /* final buffer... */
-
         for( i=0; i<data->sampsToGo; i++ )
         {
             *out++ = data->sine[data->left_phase];  /* left */
@@ -140,7 +138,7 @@ PaError TestOnce( int buffersize )
     /* initialise sinusoidal wavetable */
     for( i=0; i<TABLE_SIZE; i++ )
     {
-        data.sine[i] = (short) (32767.0 * sin( ((double)i/(double)TABLE_SIZE) * M_PI * 2. ));
+        data.sine[i] = (short) (30000.0 * sin( ((double)i/(double)TABLE_SIZE) * M_PI * 2. ));
     }
     data.left_phase = data.right_phase = 0;
     data.sampsToGo = totalSamps =  NUM_SECONDS * SAMPLE_RATE; /* Play for a few seconds. */
@@ -160,13 +158,14 @@ PaError TestOnce( int buffersize )
               buffersize,           /* frames per buffer */
               0,              /* number of buffers, if zero then use default minimum */
               paClipOff,      /* we won't output out of range samples so don't bother clipping them */
-              patest1Callback,
+              paSineCallback,
               &data );
     if( err != paNoError ) goto error;
 
     err = Pa_StartStream( stream );
     if( err != paNoError ) goto error;
     printf("Waiting for sound to finish.\n");
+    fflush(stdout);
     Pa_Sleep(1000);
     err = Pa_CloseStream( stream );
     if( err != paNoError ) goto error;

@@ -180,6 +180,7 @@ PaError TestOnce( void )
     err = Pa_StartStream( stream );
     if( err != paNoError ) goto error;
     printf("Waiting for sound to finish.\n");
+    fflush(stdout);
     Pa_Sleep(1000);
     err = Pa_CloseStream( stream );
     if( err != paNoError ) goto error;

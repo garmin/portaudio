@@ -129,10 +129,12 @@ int main(void)
     {
         printf("Sleep for %d milliseconds in audio callback.\n", i );
         data.sleepFor = i;
+        fflush(stdout);
         Pa_Sleep( ((i<1000) ? 1000 : i) );
     }
     
     printf("Suffer for 10 seconds.\n");
+    fflush(stdout);
     Pa_Sleep( 10000 );
     
     err = Pa_StopStream( stream );

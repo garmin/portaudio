@@ -138,6 +138,7 @@ int main(void)
 
         load = Pa_GetCPULoad( stream );
         printf("numSines = %d, CPU load = %f\n", data.numSines, load );
+        fflush(stdout);
     }
     while( load < 0.5 );
     
@@ -148,6 +149,8 @@ int main(void)
         Pa_Sleep( 200 );
         load = Pa_GetCPULoad( stream );
         printf("STRESSING: numSines = %d, CPU load = %f\n", data.numSines, load );
+        fflush(stdout);
+
     }
     
     printf("Suffer for 5 seconds.\n");
