@@ -82,6 +82,7 @@
 #include "pa_cpuload.h"
 #include "pa_process.h"
 #include "pa_unix_util.h"
+#include "pa_debugprint.h"
 
 static int sysErr_;
 static pthread_t mainThread_;
