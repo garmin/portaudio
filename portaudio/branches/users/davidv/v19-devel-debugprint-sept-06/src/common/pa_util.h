@@ -29,13 +29,13 @@
  */
 
 /*
- * The text above constitutes the entire PortAudio license; however, 
+ * The text above constitutes the entire PortAudio license; however,
  * the PortAudio community also makes the following non-binding requests:
  *
  * Any person wishing to distribute modifications to the Software is
  * requested to send the modifications to the original developer so that
- * they can be incorporated into the canonical version. It is also 
- * requested that these non-binding requests be included along with the 
+ * they can be incorporated into the canonical version. It is also
+ * requested that these non-binding requests be included along with the
  * license above.
  */
 
@@ -111,23 +111,6 @@ PaError PaUtil_DeviceIndexToHostApiDeviceIndex(
 void PaUtil_SetLastHostErrorInfo( PaHostApiTypeId hostApiType, long errorCode,
         const char *errorText );
 
-
-        
-/** PA_DEBUG() provides a simple debug message printing facility. The macro
- passes it's argument to a printf-like function called PaUtil_DebugPrint()
- which prints to stderr and always flushes the stream after printing.
- Because preprocessor macros cannot directly accept variable length argument
- lists, calls to the macro must include an additional set of parenthesis, eg:
- PA_DEBUG(("errorno: %d", 1001 ));
-*/
-
-void PaUtil_DebugPrint( const char *format, ... );
-
-#ifdef PA_ENABLE_DEBUG_OUTPUT
-#define PA_DEBUG(x) PaUtil_DebugPrint x ;
-#else
-#define PA_DEBUG(x)
-#endif
 
 
 /* the following functions are implemented in a platform platform specific
