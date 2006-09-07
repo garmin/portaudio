@@ -68,6 +68,7 @@
 #include "pa_process.h"
 #include "pa_allocation.h"
 #include "pa_cpuload.h"
+#include "pa_debugprint.h"
 #include "../pablio/ringbuffer.c"
 
 static int aErr_;
