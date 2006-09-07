@@ -40,14 +40,10 @@
  @ingroup hostaip_src
  @brief WASAPI implementation of support for a host API.
 
- @note This file is provided as a starting point for implementing support for
- a new host API. IMPLEMENT ME comments are used to indicate functionality
- which much be customised for each implementation.
+ @note pa_wasapi currently requires VC 2005, and the latest Vista SDK
+       (currently at RC1 or 5600)
 */
 
-
-
-//these headers are only in Windows SDK CTP Feb 2006 and only work in VC 2005!
 #if _MSC_VER >= 1400
 #include <windows.h>
 #include <MMReg.h>  //must be before other Wasapi headers
@@ -67,7 +63,7 @@
 #include "pa_stream.h"
 #include "pa_cpuload.h"
 #include "pa_process.h"
-
+#include "pa_debugprint.h"
 
 
 /* prototypes for functions declared in this file */
