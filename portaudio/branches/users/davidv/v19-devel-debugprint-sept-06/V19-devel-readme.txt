@@ -28,6 +28,7 @@ pa_common\pa_converters.c
 pa_common\pa_cpuload.c
 pa_common\pa_dither.c
 pa_common\pa_front.c
+pa_common\pa_debugprint.c
 pa_common\pa_allocation.h
 pa_win\pa_win_util.c
 pa_win\pa_win_hostapis.c
@@ -64,6 +65,9 @@ pa_cpuload.c/h
 pa_trace.c/h
     source and header for debug trace log facility
 
+pa_debugprint.c/h
+    source and header for debug log printing and redirecting
+    
 pa_converters.c/h
     sample buffer conversion facility
 
