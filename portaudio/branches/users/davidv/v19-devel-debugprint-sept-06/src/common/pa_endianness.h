@@ -92,7 +92,7 @@ extern "C"
        #error both PA_LITTLE_ENDIAN and PA_BIG_ENDIAN have been defined externally to pa_endianness.h - only one endianness at a time please
        #endif
 
-   #endif
+    #else
    /* endianness define has not been set externally */
 
    /* set PA_LITTLE_ENDIAN or PA_BIG_ENDIAN by testing well known platform specific defines */
@@ -102,6 +102,7 @@ extern "C"
    #else
       #define PA_BIG_ENDIAN
    #endif
+    #endif
 
    #if !defined(PA_LITTLE_ENDIAN) && !defined(PA_BIG_ENDIAN)
    /*
@@ -113,6 +114,7 @@ extern "C"
    #endif
 
 #endif
+
 
 /* PA_VALIDATE_ENDIANNESS compares the compile time and runtime endianness,
  and raises an assertion if they don't match. <assert.h> must be included in

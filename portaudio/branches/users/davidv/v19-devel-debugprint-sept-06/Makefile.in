@@ -48,8 +48,8 @@ COMMON_OBJS = \
 	src/common/pa_converters.o \
 	src/common/pa_cpuload.o \
 	src/common/pa_dither.o \
-	src/common/pa_front.o \
 	src/common/pa_debugprint.o \
+	src/common/pa_front.o \
 	src/common/pa_process.o \
 	src/common/pa_skeleton.o \
 	src/common/pa_stream.o \
@@ -85,6 +85,7 @@ TESTS = \
 	bin/patest_sine_time \
 	bin/patest_start_stop \
 	bin/patest_stop \
+	bin/patest_stop_playout \
 	bin/patest_toomanysines \
 	bin/patest_underflow \
 	bin/patest_wire \

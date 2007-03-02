@@ -203,16 +203,16 @@ static PaError InitializeHostApis( void )
             assert( hostApi->info.defaultInputDevice < hostApi->info.deviceCount );
             assert( hostApi->info.defaultOutputDevice < hostApi->info.deviceCount );
 
-            hostApis_[hostApisCount_]->privatePaFrontInfo.baseDeviceIndex = baseDeviceIndex;
+            hostApi->privatePaFrontInfo.baseDeviceIndex = baseDeviceIndex;
 
-            if( hostApis_[hostApisCount_]->info.defaultInputDevice != paNoDevice )
-                hostApis_[hostApisCount_]->info.defaultInputDevice += baseDeviceIndex;
+            if( hostApi->info.defaultInputDevice != paNoDevice )
+                hostApi->info.defaultInputDevice += baseDeviceIndex;
 
-            if( hostApis_[hostApisCount_]->info.defaultOutputDevice != paNoDevice )
-                hostApis_[hostApisCount_]->info.defaultOutputDevice += baseDeviceIndex;
+            if( hostApi->info.defaultOutputDevice != paNoDevice )
+                hostApi->info.defaultOutputDevice += baseDeviceIndex;
 
-            baseDeviceIndex += hostApis_[hostApisCount_]->info.deviceCount;
-            deviceCount_ += hostApis_[hostApisCount_]->info.deviceCount;
+            baseDeviceIndex += hostApi->info.deviceCount;
+            deviceCount_ += hostApi->info.deviceCount;
 
             ++hostApisCount_;
         }
@@ -991,8 +991,8 @@ PaError Pa_IsFormatSupported( const PaStreamParameters *inputParameters,
                               double sampleRate )
 {
     PaError result;
-    PaUtilHostApiRepresentation *hostApi;
-    PaDeviceIndex hostApiInputDevice, hostApiOutputDevice;
+    PaUtilHostApiRepresentation *hostApi = 0;
+    PaDeviceIndex hostApiInputDevice = paNoDevice, hostApiOutputDevice = paNoDevice;
     PaStreamParameters hostApiInputParameters, hostApiOutputParameters;
     PaStreamParameters *hostApiInputParametersPtr, *hostApiOutputParametersPtr;
 
@@ -1102,8 +1102,8 @@ PaError Pa_OpenStream( PaStream** stream,
                        void *userData )
 {
     PaError result;
-    PaUtilHostApiRepresentation *hostApi;
-    PaDeviceIndex hostApiInputDevice, hostApiOutputDevice;
+    PaUtilHostApiRepresentation *hostApi = 0;
+    PaDeviceIndex hostApiInputDevice = paNoDevice, hostApiOutputDevice = paNoDevice;
     PaStreamParameters hostApiInputParameters, hostApiOutputParameters;
     PaStreamParameters *hostApiInputParametersPtr, *hostApiOutputParametersPtr;
 
@@ -1253,6 +1253,9 @@ PaError Pa_OpenDefaultStream( PaStream** stream,
     if( inputChannelCount > 0 )
     {
         hostApiInputParameters.device = Pa_GetDefaultInputDevice();
+		if( hostApiInputParameters.device == paNoDevice )
+			return paDeviceUnavailable; 
+	
         hostApiInputParameters.channelCount = inputChannelCount;
         hostApiInputParameters.sampleFormat = sampleFormat;
         /* defaultHighInputLatency is used below instead of
@@ -1273,6 +1276,9 @@ PaError Pa_OpenDefaultStream( PaStream** stream,
     if( outputChannelCount > 0 )
     {
         hostApiOutputParameters.device = Pa_GetDefaultOutputDevice();
+		if( hostApiOutputParameters.device == paNoDevice )
+			return paDeviceUnavailable; 
+
         hostApiOutputParameters.channelCount = outputChannelCount;
         hostApiOutputParameters.sampleFormat = sampleFormat;
         /* defaultHighOutputLatency is used below instead of

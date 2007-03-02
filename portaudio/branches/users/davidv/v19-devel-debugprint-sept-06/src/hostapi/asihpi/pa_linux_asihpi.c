@@ -149,7 +149,7 @@
 #include <asihpi/hpi.h>      /* HPI API */
 
 #include "portaudio.h"       /* PortAudio API */
-#include "pa_util.h"         /* other small utilities */
+#include "pa_util.h"         /* PA_DEBUG, other small utilities */
 #include "pa_unix_util.h"    /* Unix threading utilities */
 #include "pa_allocation.h"   /* Group memory allocation */
 #include "pa_hostapi.h"      /* Host API structs */
@@ -157,7 +157,7 @@
 #include "pa_cpuload.h"      /* CPU load measurer */
 #include "pa_process.h"      /* Buffer processor */
 #include "pa_converters.h"   /* PaUtilZeroer */
-#include "pa_debugprint.h"   /* PA_DEBUG, PA_LOGAPI */
+
 /* -------------------------------------------------------------------------- */
 
 /*
