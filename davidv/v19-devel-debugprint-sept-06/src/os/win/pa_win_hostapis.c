@@ -80,11 +80,11 @@ PaUtilHostApiInitializer *paHostApiInitializers[] =
         PaAsio_Initialize,
 #endif
 
-/*
+
 #ifndef PA_NO_WASAPI
 		PaWinWasapi_Initialize,
 #endif
-
+/*
 #ifndef PA_NO_WDMKS
        PaWinWdm_Initialize,
 #endif
