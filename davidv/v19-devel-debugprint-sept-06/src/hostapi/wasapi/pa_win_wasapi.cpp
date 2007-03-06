@@ -1820,7 +1820,8 @@ ProcThread(void* param){
 
 	while( !stream->closeRequest ) 
     { 
-        DWORD dwResult = WaitForSingleObject(stream->hNotificationEvent, INFINITE);
+	    //lets wait but have a 1 second timeout
+        DWORD dwResult = WaitForSingleObject(stream->hNotificationEvent, 1000);
         switch( dwResult ) {
 		case WAIT_OBJECT_0: {
 
