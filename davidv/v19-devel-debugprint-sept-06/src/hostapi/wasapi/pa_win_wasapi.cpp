@@ -966,6 +966,8 @@ GetClosestFormat(IAudioClient * myClient, double sampleRate,const  PaStreamParam
     else if (sharedClosestMatch){
         WAVEFORMATEXTENSIBLE* ext = (WAVEFORMATEXTENSIBLE*)sharedClosestMatch;
 		
+		int closetMatchRr = (int)sharedClosestMatch->nSamplesPerSec;
+
 		if (sharedClosestMatch->wFormatTag == WAVE_FORMAT_EXTENSIBLE)
 			memcpy(outWavex,sharedClosestMatch,sizeof(WAVEFORMATEXTENSIBLE));
 		else
@@ -973,7 +975,10 @@ GetClosestFormat(IAudioClient * myClient, double sampleRate,const  PaStreamParam
 
         CoTaskMemFree(sharedClosestMatch);
 
+		if ((int)sampleRate == closetMatchRr)
 		answer = paFormatIsSupported;
+		else
+			answer = paInvalidSampleRate;
 	
 	}else {
 
@@ -1004,9 +1009,9 @@ GetClosestFormat(IAudioClient * myClient, double sampleRate,const  PaStreamParam
 			memset(&pcm16WaveFormat,0,sizeof(WAVEFORMATEX));
 			pcm16WaveFormat.wFormatTag = WAVE_FORMAT_PCM; 
 			pcm16WaveFormat.nChannels = 2; 
-			pcm16WaveFormat.nSamplesPerSec = (DWORD)44100; 
-			pcm16WaveFormat.nAvgBytesPerSec = 176400L; 
+			pcm16WaveFormat.nSamplesPerSec = (DWORD)sampleRate; 
 			pcm16WaveFormat.nBlockAlign = 4; 
+			pcm16WaveFormat.nAvgBytesPerSec = pcm16WaveFormat.nSamplesPerSec*pcm16WaveFormat.nBlockAlign; 
 			pcm16WaveFormat.wBitsPerSample = 16; 
 			pcm16WaveFormat.cbSize = 0;
 
@@ -1015,6 +1020,11 @@ GetClosestFormat(IAudioClient * myClient, double sampleRate,const  PaStreamParam
 			else
 				hResult = myClient->IsFormatSupported(AUDCLNT_SHAREMODE_SHARED,   (WAVEFORMATEX*)&pcm16WaveFormat,&sharedClosestMatch);
 
+			if (hResult == S_OK){
+				memcpy(outWavex,&pcm16WaveFormat,sizeof(WAVEFORMATEX));
+				answer = paFormatIsSupported;
+			}
+			else
 			answer = PWFA_NO;
 		}
 
@@ -1853,6 +1863,14 @@ ProcThread(void* param){
 			hResult = stream->rclient->ReleaseBuffer(usingBS, 0);
 			if (hResult != S_OK)
 				logAUDCLNT_E(hResult);
+
+			 /*	This was suggested, but in my tests it doesnt seem to improve the 
+                locking behaviour some drivers have running in exclusive mode.
+                if(!ResetEvent(stream->hNotificationEvent)){
+					logAUDCLNT_E(hResult);
+				}
+             */
+
 		} 
 		break;
 
