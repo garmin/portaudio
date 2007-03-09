@@ -966,7 +966,7 @@ GetClosestFormat(IAudioClient * myClient, double sampleRate,const  PaStreamParam
     else if (sharedClosestMatch){
         WAVEFORMATEXTENSIBLE* ext = (WAVEFORMATEXTENSIBLE*)sharedClosestMatch;
 		
-		int closetMatchRr = (int)sharedClosestMatch->nSamplesPerSec;
+		int closestMatchSR = (int)sharedClosestMatch->nSamplesPerSec;
 
 		if (sharedClosestMatch->wFormatTag == WAVE_FORMAT_EXTENSIBLE)
 			memcpy(outWavex,sharedClosestMatch,sizeof(WAVEFORMATEXTENSIBLE));
@@ -975,7 +975,7 @@ GetClosestFormat(IAudioClient * myClient, double sampleRate,const  PaStreamParam
 
         CoTaskMemFree(sharedClosestMatch);
 
-		if ((int)sampleRate == closetMatchRr)
+		if ((int)sampleRate == closestMatchSR)
 		answer = paFormatIsSupported;
 		else
 			answer = paInvalidSampleRate;
@@ -1814,7 +1814,10 @@ ProcThread(void* param){
 
     PaWinWasapiStream *stream = (PaWinWasapiStream*)param;
 
-	stream->hNotificationEvent = CreateEvent(NULL, false, false, "PAWASA");
+	stream->hNotificationEvent = CreateEvent(NULL, 
+	                                         FALSE,  //bManualReset are we sure??
+											 FALSE, 
+											 "PAWASA");
 	hResult = stream->out.client->SetEventHandle(stream->hNotificationEvent);
 	if (hResult != S_OK)
 		logAUDCLNT_E(hResult);
