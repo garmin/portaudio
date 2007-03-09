@@ -870,9 +870,6 @@ waveformatFromParams(WAVEFORMATEXTENSIBLE*wavex,
 }
 
 
-enum PaWasapiFormatAnswer {PWFA_OK,PWFA_NO,PWFA_SUGGESTED};
-
-
 
 
 
@@ -950,7 +947,7 @@ GetClosestFormat(IAudioClient * myClient, double sampleRate,const  PaStreamParam
 	//TODO we should try exclusive first and shared after
 	*shareMode = PORTAUDIO_SHAREMODE;
 
-	PaError answer = paFormatIsSupported;
+	PaError answer = paInvalidSampleRate;
 
     waveformatFromParams(outWavex,params,sampleRate);
 	WAVEFORMATEX *sharedClosestMatch=0;
@@ -1024,8 +1021,6 @@ GetClosestFormat(IAudioClient * myClient, double sampleRate,const  PaStreamParam
 				memcpy(outWavex,&pcm16WaveFormat,sizeof(WAVEFORMATEX));
 				answer = paFormatIsSupported;
 			}
-			else
-			answer = PWFA_NO;
 		}
 
 		logAUDCLNT_E(hResult);
