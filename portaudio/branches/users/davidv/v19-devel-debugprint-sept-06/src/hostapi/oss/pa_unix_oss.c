@@ -44,7 +44,7 @@
 
 /**
  @file
- @ingroup hostaip_src
+ @ingroup hostapi_src
 */
 
 #include <stdio.h>
@@ -986,7 +986,7 @@ static PaError PaOssStreamComponent_Configure( PaOssStreamComponent *component, 
     int frgmt;
     int numBufs;
     int bytesPerBuf;
-    double bufSz;
+    unsigned long bufSz;
     unsigned long fragSz;
     audio_buf_info bufInfo;
 
@@ -999,20 +999,20 @@ static PaError PaOssStreamComponent_Configure( PaOssStreamComponent *component, 
          */
         if( framesPerBuffer == paFramesPerBufferUnspecified )
         { 
-            bufSz = component->latency * sampleRate;
+            bufSz = (unsigned long)(component->latency * sampleRate);
             fragSz = bufSz / 4;
         }
         else
         {
             fragSz = framesPerBuffer;
-            bufSz = component->latency * sampleRate + fragSz; /* Latency + 1 buffer */
+            bufSz = (unsigned long)(component->latency * sampleRate) + fragSz; /* Latency + 1 buffer */
         }
 
         PA_ENSURE( GetAvailableFormats( component, &availableFormats ) );
         hostFormat = PaUtil_SelectClosestAvailableFormat( availableFormats, component->userFormat );
 
         /* OSS demands at least 2 buffers, and 16 bytes per buffer */
-        numBufs = PA_MAX( bufSz / fragSz, 2 );
+        numBufs = (int)PA_MAX( bufSz / fragSz, 2 );
         bytesPerBuf = PA_MAX( fragSz * Pa_GetSampleSize( hostFormat ) * chans, 16 );
 
         /* The fragment parameters are encoded like this:
@@ -1119,7 +1119,8 @@ static PaError PaOssStream_Configure( PaOssStream *stream, double sampleRate, un
     if( stream->capture )
     {
         PaOssStreamComponent *component = stream->capture;
-        PaOssStreamComponent_Configure( component, sampleRate, framesPerBuffer, StreamMode_In, NULL );
+        PA_ENSURE( PaOssStreamComponent_Configure( component, sampleRate, framesPerBuffer, StreamMode_In,
+                    NULL ) );
 
         assert( component->hostChannelCount > 0 );
         assert( component->hostFrames > 0 );
