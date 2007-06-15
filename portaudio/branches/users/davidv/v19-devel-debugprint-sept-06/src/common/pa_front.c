@@ -72,7 +72,6 @@
 
 
 #include <stdio.h>
-#include <stdarg.h>
 #include <memory.h>
 #include <string.h>
 #include <assert.h> /* needed by PA_VALIDATE_ENDIANNESS */
@@ -310,7 +309,7 @@ PaError Pa_Initialize( void )
 {
     PaError result;
 
-    PA_LOGAPI(( "Pa_Initialize called.\n" ));
+    PA_LOGAPI_ENTER( "Pa_Initialize" );
 
     if( PA_IS_INITIALISED_ )
     {
@@ -330,8 +329,7 @@ PaError Pa_Initialize( void )
             ++initializationCount_;
     }
 
-    PA_LOGAPI(( "Pa_Initialize returned:\n" ));
-    PA_LOGAPI(( "\tPaError: %d ( %s )\n\n", result, Pa_GetErrorText( result ) ));
+    PA_LOGAPI_EXIT_PAERROR( "Pa_Initialize", result );
 
     return result;
 }
@@ -341,7 +339,7 @@ PaError Pa_Terminate( void )
 {
     PaError result;
 
-    PA_LOGAPI(("Pa_Terminate called.\n" ));
+    PA_LOGAPI_ENTER( "Pa_Terminate" );
 
     if( PA_IS_INITIALISED_ )
     {
@@ -360,8 +358,7 @@ PaError Pa_Terminate( void )
         result=  paNotInitialized;
     }
 
-    PA_LOGAPI(("Pa_Terminate returned:\n" ));
-    PA_LOGAPI(("\tPaError: %d ( %s )\n\n", result, Pa_GetErrorText( result ) ));
+    PA_LOGAPI_EXIT_PAERROR( "Pa_Terminate", result );
 
     return result;
 }
@@ -408,7 +405,11 @@ const char *Pa_GetErrorText( PaError errorCode )
     case paCanNotWriteToACallbackStream:        result = "Can't write to a callback stream"; break;
     case paCanNotReadFromAnOutputOnlyStream:    result = "Can't read from an output only stream"; break;
     case paCanNotWriteToAnInputOnlyStream:      result = "Can't write to an input only stream"; break;
-    default:                         result = "Illegal error number"; break;
+    default:                         
+                                    if( errorCode > 0 )
+                                        result = "Invalid error code (value greater than zero)"; break;
+                                    else
+                                        result = "Invalid error code"; break;
     }
     return result;
 }
@@ -419,7 +420,7 @@ PaHostApiIndex Pa_HostApiTypeIdToHostApiIndex( PaHostApiTypeId type )
     PaHostApiIndex result;
     int i;
 
-    PA_LOGAPI(("Pa_HostApiTypeIdToHostApiIndex called:\n" ));
+    PA_LOGAPI_ENTER_PARAMS( "Pa_HostApiTypeIdToHostApiIndex" );
     PA_LOGAPI(("\tPaHostApiTypeId type: %d\n", type ));
 
     if( !PA_IS_INITIALISED_ )
@@ -440,8 +441,7 @@ PaHostApiIndex Pa_HostApiTypeIdToHostApiIndex( PaHostApiTypeId type )
         }
     }
 
-    PA_LOGAPI(("Pa_HostApiTypeIdToHostApiIndex returned:\n" ));
-    PA_LOGAPI(("\tPaError: %d ( %s )\n\n", result, Pa_GetErrorText( result ) ));
+    PA_LOGAPI_EXIT_PAERROR_OR_T_RESULT( "Pa_HostApiTypeIdToHostApiIndex", "PaHostApiIndex: %d", result );
 
     return result;
 }
@@ -502,7 +502,7 @@ PaHostApiIndex Pa_GetHostApiCount( void )
 {
     int result;
 
-    PA_LOGAPI(("Pa_GetHostApiCount called.\n" ));
+    PA_LOGAPI_ENTER( "Pa_GetHostApiCount" );
 
     if( !PA_IS_INITIALISED_ )
     {
@@ -513,8 +513,7 @@ PaHostApiIndex Pa_GetHostApiCount( void )
         result = hostApisCount_;
     }
 
-    PA_LOGAPI(("Pa_GetHostApiCount returned:\n" ));
-    PA_LOGAPI(("\tPaError: %d ( %s )\n\n", result, Pa_GetErrorText( result ) ));
+    PA_LOGAPI_EXIT_PAERROR_OR_T_RESULT( "Pa_GetHostApiCount", "PaHostApiIndex: %d", result );
 
     return result;
 }
@@ -524,7 +523,7 @@ PaHostApiIndex Pa_GetDefaultHostApi( void )
 {
     int result;
 
-    PA_LOGAPI(("Pa_GetDefaultHostApi called.\n" ));
+    PA_LOGAPI_ENTER( "Pa_GetDefaultHostApi" );
 
     if( !PA_IS_INITIALISED_ )
     {
@@ -543,8 +542,7 @@ PaHostApiIndex Pa_GetDefaultHostApi( void )
         }
     }
 
-    PA_LOGAPI(("Pa_GetDefaultHostApi returned:\n" ));
-    PA_LOGAPI(("\tPaError: %d ( %s )\n\n", result, Pa_GetErrorText( result ) ));
+    PA_LOGAPI_EXIT_PAERROR_OR_T_RESULT( "Pa_GetDefaultHostApi", "PaHostApiIndex: %d", result );
 
     return result;
 }
@@ -554,7 +552,7 @@ const PaHostApiInfo* Pa_GetHostApiInfo( PaHostApiIndex hostApi )
 {
     PaHostApiInfo *info;
 
-    PA_LOGAPI(("Pa_GetHostApiInfo called:\n" ));
+    PA_LOGAPI_ENTER_PARAMS( "Pa_GetHostApiInfo" );
     PA_LOGAPI(("\tPaHostApiIndex hostApi: %d\n", hostApi ));
 
     if( !PA_IS_INITIALISED_ )
@@ -595,7 +593,7 @@ PaDeviceIndex Pa_HostApiDeviceIndexToDeviceIndex( PaHostApiIndex hostApi, int ho
 {
     PaDeviceIndex result;
 
-    PA_LOGAPI(("Pa_HostApiDeviceIndexToPaDeviceIndex called:\n" ));
+    PA_LOGAPI_ENTER_PARAMS( "Pa_HostApiDeviceIndexToPaDeviceIndex" );
     PA_LOGAPI(("\tPaHostApiIndex hostApi: %d\n", hostApi ));
     PA_LOGAPI(("\tint hostApiDeviceIndex: %d\n", hostApiDeviceIndex ));
 
@@ -623,9 +621,7 @@ PaDeviceIndex Pa_HostApiDeviceIndexToDeviceIndex( PaHostApiIndex hostApi, int ho
         }
     }
 
-
-    PA_LOGAPI(("Pa_HostApiDeviceIndexToPaDeviceIndex returned:\n" ));
-    PA_LOGAPI(("\tPaError: %d ( %s )\n\n", result, Pa_GetErrorText( result ) ));
+    PA_LOGAPI_EXIT_PAERROR_OR_T_RESULT( "Pa_HostApiDeviceIndexToPaDeviceIndex", "PaDeviceIndex: %d", result );
 
     return result;
 }
@@ -635,7 +631,7 @@ PaDeviceIndex Pa_GetDeviceCount( void )
 {
     PaDeviceIndex result;
 
-    PA_LOGAPI(("Pa_GetDeviceCount called.\n" ));
+    PA_LOGAPI_ENTER( "Pa_GetDeviceCount" );
 
     if( !PA_IS_INITIALISED_ )
     {
@@ -646,8 +642,7 @@ PaDeviceIndex Pa_GetDeviceCount( void )
         result = deviceCount_;
     }
 
-    PA_LOGAPI(("Pa_GetDeviceCount returned:\n" ));
-    PA_LOGAPI(("\tPaError: %d ( %s )\n\n", result, Pa_GetErrorText( result ) ));
+    PA_LOGAPI_EXIT_PAERROR_OR_T_RESULT( "Pa_GetDeviceCount", "PaDeviceIndex: %d", result );
 
     return result;
 }
@@ -658,7 +653,7 @@ PaDeviceIndex Pa_GetDefaultInputDevice( void )
     PaHostApiIndex hostApi;
     PaDeviceIndex result;
 
-    PA_LOGAPI(("Pa_GetDefaultInputDevice called.\n" ));
+    PA_LOGAPI_ENTER( "Pa_GetDefaultInputDevice" );
 
     hostApi = Pa_GetDefaultHostApi();
     if( hostApi < 0 )
@@ -670,8 +665,7 @@ PaDeviceIndex Pa_GetDefaultInputDevice( void )
         result = hostApis_[hostApi]->info.defaultInputDevice;
     }
 
-    PA_LOGAPI(("Pa_GetDefaultInputDevice returned:\n" ));
-    PA_LOGAPI(("\tPaDeviceIndex: %d\n\n", result ));
+    PA_LOGAPI_EXIT_T( "Pa_GetDefaultInputDevice", "PaDeviceIndex: %d", result );
 
     return result;
 }
@@ -682,7 +676,7 @@ PaDeviceIndex Pa_GetDefaultOutputDevice( void )
     PaHostApiIndex hostApi;
     PaDeviceIndex result;
 
-    PA_LOGAPI(("Pa_GetDefaultOutputDevice called.\n" ));
+    PA_LOGAPI_ENTER( "Pa_GetDefaultOutputDevice" );
 
     hostApi = Pa_GetDefaultHostApi();
     if( hostApi < 0 )
@@ -694,8 +688,7 @@ PaDeviceIndex Pa_GetDefaultOutputDevice( void )
         result = hostApis_[hostApi]->info.defaultOutputDevice;
     }
 
-    PA_LOGAPI(("Pa_GetDefaultOutputDevice returned:\n" ));
-    PA_LOGAPI(("\tPaDeviceIndex: %d\n\n", result ));
+    PA_LOGAPI_EXIT_T( "Pa_GetDefaultOutputDevice", "PaDeviceIndex: %d", result );
 
     return result;
 }
@@ -708,7 +701,7 @@ const PaDeviceInfo* Pa_GetDeviceInfo( PaDeviceIndex device )
     PaDeviceInfo *result;
 
 
-    PA_LOGAPI(("Pa_GetDeviceInfo called:\n" ));
+    PA_LOGAPI_ENTER_PARAMS( "Pa_GetDeviceInfo" );
     PA_LOGAPI(("\tPaDeviceIndex device: %d\n", device ));
 
     if( hostApiIndex < 0 )
@@ -998,7 +991,7 @@ PaError Pa_IsFormatSupported( const PaStreamParameters *inputParameters,
 
 
 #ifdef PA_LOG_API_CALLS
-    PA_LOGAPI(("Pa_IsFormatSupported called:\n" ));
+    PA_LOGAPI_ENTER_PARAMS( "Pa_IsFormatSupported" );
 
     if( inputParameters == NULL ){
         PA_LOGAPI(("\tPaStreamParameters *inputParameters: NULL\n" ));
@@ -1029,8 +1022,7 @@ PaError Pa_IsFormatSupported( const PaStreamParameters *inputParameters,
     {
         result = paNotInitialized;
 
-        PA_LOGAPI(("Pa_IsFormatSupported returned:\n" ));
-        PA_LOGAPI(("\tPaError: %d ( %s )\n\n", result, Pa_GetErrorText( result ) ));
+        PA_LOGAPI_EXIT_PAERROR( "Pa_IsFormatSupported", result );
         return result;
     }
 
@@ -1042,8 +1034,7 @@ PaError Pa_IsFormatSupported( const PaStreamParameters *inputParameters,
                                            &hostApiOutputDevice );
     if( result != paNoError )
     {
-        PA_LOGAPI(("Pa_IsFormatSupported returned:\n" ));
-        PA_LOGAPI(("\tPaError: %d ( %s )\n\n", result, Pa_GetErrorText( result ) ));
+        PA_LOGAPI_EXIT_PAERROR( "Pa_IsFormatSupported", result );
         return result;
     }
 
@@ -1109,7 +1100,7 @@ PaError Pa_OpenStream( PaStream** stream,
 
 
 #ifdef PA_LOG_API_CALLS
-    PA_LOGAPI(("Pa_OpenStream called:\n" ));
+    PA_LOGAPI_ENTER_PARAMS( "Pa_OpenStream" );
     PA_LOGAPI(("\tPaStream** stream: 0x%p\n", stream ));
 
     if( inputParameters == NULL ){
@@ -1239,7 +1230,7 @@ PaError Pa_OpenDefaultStream( PaStream** stream,
     PaStreamParameters hostApiInputParameters, hostApiOutputParameters;
     PaStreamParameters *hostApiInputParametersPtr, *hostApiOutputParametersPtr;
 
-    PA_LOGAPI(("Pa_OpenDefaultStream called:\n" ));
+    PA_LOGAPI_ENTER_PARAMS( "Pa_OpenDefaultStream" );
     PA_LOGAPI(("\tPaStream** stream: 0x%p\n", stream ));
     PA_LOGAPI(("\tint inputChannelCount: %d\n", inputChannelCount ));
     PA_LOGAPI(("\tint outputChannelCount: %d\n", outputChannelCount ));
@@ -1327,7 +1318,7 @@ PaError Pa_CloseStream( PaStream* stream )
     PaUtilStreamInterface *interface;
     PaError result = PaUtil_ValidateStreamPointer( stream );
 
-    PA_LOGAPI(("Pa_CloseStream called:\n" ));
+    PA_LOGAPI_ENTER_PARAMS( "Pa_CloseStream" );
     PA_LOGAPI(("\tPaStream* stream: 0x%p\n", stream ));
 
     /* always remove the open stream from our list, even if this function
@@ -1350,8 +1341,7 @@ PaError Pa_CloseStream( PaStream* stream )
             result = interface->Close( stream );
     }
 
-    PA_LOGAPI(("Pa_CloseStream returned:\n" ));
-    PA_LOGAPI(("\tPaError: %d ( %s )\n\n", result, Pa_GetErrorText( result ) ));
+    PA_LOGAPI_EXIT_PAERROR( "Pa_CloseStream", result );
 
     return result;
 }
@@ -1361,7 +1351,7 @@ PaError Pa_SetStreamFinishedCallback( PaStream *stream, PaStreamFinishedCallback
 {
     PaError result = PaUtil_ValidateStreamPointer( stream );
 
-    PA_LOGAPI(("Pa_SetStreamFinishedCallback called:\n" ));
+    PA_LOGAPI_ENTER_PARAMS( "Pa_SetStreamFinishedCallback" );
     PA_LOGAPI(("\tPaStream* stream: 0x%p\n", stream ));
     PA_LOGAPI(("\tPaStreamFinishedCallback* streamFinishedCallback: 0x%p\n", streamFinishedCallback ));
 
@@ -1379,8 +1369,7 @@ PaError Pa_SetStreamFinishedCallback( PaStream *stream, PaStreamFinishedCallback
         }
     }
 
-    PA_LOGAPI(("Pa_SetStreamFinishedCallback returned:\n" ));
-    PA_LOGAPI(("\tPaError: %d ( %s )\n\n", result, Pa_GetErrorText( result ) ));
+    PA_LOGAPI_EXIT_PAERROR( "Pa_SetStreamFinishedCallback", result );
 
     return result;
 
@@ -1391,7 +1380,7 @@ PaError Pa_StartStream( PaStream *stream )
 {
     PaError result = PaUtil_ValidateStreamPointer( stream );
 
-    PA_LOGAPI(("Pa_StartStream called:\n" ));
+    PA_LOGAPI_ENTER_PARAMS( "Pa_StartStream" );
     PA_LOGAPI(("\tPaStream* stream: 0x%p\n", stream ));
 
     if( result == paNoError )
@@ -1407,8 +1396,7 @@ PaError Pa_StartStream( PaStream *stream )
         }
     }
 
-    PA_LOGAPI(("Pa_StartStream returned:\n" ));
-    PA_LOGAPI(("\tPaError: %d ( %s )\n\n", result, Pa_GetErrorText( result ) ));
+    PA_LOGAPI_EXIT_PAERROR( "Pa_StartStream", result );
 
     return result;
 }
@@ -1418,7 +1406,7 @@ PaError Pa_StopStream( PaStream *stream )
 {
     PaError result = PaUtil_ValidateStreamPointer( stream );
 
-    PA_LOGAPI(("Pa_StopStream called\n" ));
+    PA_LOGAPI_ENTER_PARAMS( "Pa_StopStream" );
     PA_LOGAPI(("\tPaStream* stream: 0x%p\n", stream ));
 
     if( result == paNoError )
@@ -1434,8 +1422,7 @@ PaError Pa_StopStream( PaStream *stream )
         }
     }
 
-    PA_LOGAPI(("Pa_StopStream returned:\n" ));
-    PA_LOGAPI(("\tPaError: %d ( %s )\n\n", result, Pa_GetErrorText( result ) ));
+    PA_LOGAPI_EXIT_PAERROR( "Pa_StopStream", result );
 
     return result;
 }
@@ -1445,7 +1432,7 @@ PaError Pa_AbortStream( PaStream *stream )
 {
     PaError result = PaUtil_ValidateStreamPointer( stream );
 
-    PA_LOGAPI(("Pa_AbortStream called:\n" ));
+    PA_LOGAPI_ENTER_PARAMS( "Pa_AbortStream" );
     PA_LOGAPI(("\tPaStream* stream: 0x%p\n", stream ));
 
     if( result == paNoError )
@@ -1461,8 +1448,7 @@ PaError Pa_AbortStream( PaStream *stream )
         }
     }
 
-    PA_LOGAPI(("Pa_AbortStream returned:\n" ));
-    PA_LOGAPI(("\tPaError: %d ( %s )\n\n", result, Pa_GetErrorText( result ) ));
+    PA_LOGAPI_EXIT_PAERROR( "Pa_AbortStream", result );
 
     return result;
 }
@@ -1472,14 +1458,13 @@ PaError Pa_IsStreamStopped( PaStream *stream )
 {
     PaError result = PaUtil_ValidateStreamPointer( stream );
 
-    PA_LOGAPI(("Pa_IsStreamStopped called:\n" ));
+    PA_LOGAPI_ENTER_PARAMS( "Pa_IsStreamStopped" );
     PA_LOGAPI(("\tPaStream* stream: 0x%p\n", stream ));
 
     if( result == paNoError )
         result = PA_STREAM_INTERFACE(stream)->IsStopped( stream );
 
-    PA_LOGAPI(("Pa_IsStreamStopped returned:\n" ));
-    PA_LOGAPI(("\tPaError: %d ( %s )\n\n", result, Pa_GetErrorText( result ) ));
+    PA_LOGAPI_EXIT_PAERROR( "Pa_IsStreamStopped", result );
 
     return result;
 }
@@ -1489,14 +1474,14 @@ PaError Pa_IsStreamActive( PaStream *stream )
 {
     PaError result = PaUtil_ValidateStreamPointer( stream );
 
-    PA_LOGAPI(("Pa_IsStreamActive called:\n" ));
+    PA_LOGAPI_ENTER_PARAMS( "Pa_IsStreamActive" );
     PA_LOGAPI(("\tPaStream* stream: 0x%p\n", stream ));
 
     if( result == paNoError )
         result = PA_STREAM_INTERFACE(stream)->IsActive( stream );
 
-    PA_LOGAPI(("Pa_IsStreamActive returned:\n" ));
-    PA_LOGAPI(("\tPaError: %d ( %s )\n\n", result, Pa_GetErrorText( result ) ));
+
+    PA_LOGAPI_EXIT_PAERROR( "Pa_IsStreamActive", result );
 
     return result;
 }
@@ -1507,7 +1492,7 @@ const PaStreamInfo* Pa_GetStreamInfo( PaStream *stream )
     PaError error = PaUtil_ValidateStreamPointer( stream );
     const PaStreamInfo *result;
 
-    PA_LOGAPI(("Pa_GetStreamInfo called:\n" ));
+    PA_LOGAPI_ENTER_PARAMS( "Pa_GetStreamInfo" );
     PA_LOGAPI(("\tPaStream* stream: 0x%p\n", stream ));
 
     if( error != paNoError )
@@ -1543,7 +1528,7 @@ PaTime Pa_GetStreamTime( PaStream *stream )
     PaError error = PaUtil_ValidateStreamPointer( stream );
     PaTime result;
 
-    PA_LOGAPI(("Pa_GetStreamTime called:\n" ));
+    PA_LOGAPI_ENTER_PARAMS( "Pa_GetStreamTime" );
     PA_LOGAPI(("\tPaStream* stream: 0x%p\n", stream ));
 
     if( error != paNoError )
@@ -1572,7 +1557,7 @@ double Pa_GetStreamCpuLoad( PaStream* stream )
     PaError error = PaUtil_ValidateStreamPointer( stream );
     double result;
 
-    PA_LOGAPI(("Pa_GetStreamCpuLoad called:\n" ));
+    PA_LOGAPI_ENTER_PARAMS( "Pa_GetStreamCpuLoad" );
     PA_LOGAPI(("\tPaStream* stream: 0x%p\n", stream ));
 
     if( error != paNoError )
@@ -1603,7 +1588,7 @@ PaError Pa_ReadStream( PaStream* stream,
 {
     PaError result = PaUtil_ValidateStreamPointer( stream );
 
-    PA_LOGAPI(("Pa_ReadStream called:\n" ));
+    PA_LOGAPI_ENTER_PARAMS( "Pa_ReadStream" );
     PA_LOGAPI(("\tPaStream* stream: 0x%p\n", stream ));
 
     if( result == paNoError )
@@ -1631,8 +1616,7 @@ PaError Pa_ReadStream( PaStream* stream,
         }
     }
 
-    PA_LOGAPI(("Pa_ReadStream returned:\n" ));
-    PA_LOGAPI(("\tPaError: %d ( %s )\n\n", result, Pa_GetErrorText( result ) ));
+    PA_LOGAPI_EXIT_PAERROR( "Pa_ReadStream", result );
 
     return result;
 }
@@ -1644,7 +1628,7 @@ PaError Pa_WriteStream( PaStream* stream,
 {
     PaError result = PaUtil_ValidateStreamPointer( stream );
 
-    PA_LOGAPI(("Pa_WriteStream called:\n" ));
+    PA_LOGAPI_ENTER_PARAMS( "Pa_WriteStream" );
     PA_LOGAPI(("\tPaStream* stream: 0x%p\n", stream ));
 
     if( result == paNoError )
@@ -1672,9 +1656,8 @@ PaError Pa_WriteStream( PaStream* stream,
         }
     }
 
-    PA_LOGAPI(("Pa_WriteStream returned:\n" ));
-    PA_LOGAPI(("\tPaError: %d ( %s )\n\n", result, Pa_GetErrorText( result ) ));
-
+    PA_LOGAPI_EXIT_PAERROR( "Pa_WriteStream", result );
+    
     return result;
 }
 
@@ -1683,7 +1666,7 @@ signed long Pa_GetStreamReadAvailable( PaStream* stream )
     PaError error = PaUtil_ValidateStreamPointer( stream );
     signed long result;
 
-    PA_LOGAPI(("Pa_GetStreamReadAvailable called:\n" ));
+    PA_LOGAPI_ENTER_PARAMS( "Pa_GetStreamReadAvailable" );
     PA_LOGAPI(("\tPaStream* stream: 0x%p\n", stream ));
 
     if( error != paNoError )
@@ -1712,7 +1695,7 @@ signed long Pa_GetStreamWriteAvailable( PaStream* stream )
     PaError error = PaUtil_ValidateStreamPointer( stream );
     signed long result;
 
-    PA_LOGAPI(("Pa_GetStreamWriteAvailable called:\n" ));
+    PA_LOGAPI_ENTER_PARAMS( "Pa_GetStreamWriteAvailable" );
     PA_LOGAPI(("\tPaStream* stream: 0x%p\n", stream ));
 
     if( error != paNoError )
@@ -1740,7 +1723,7 @@ PaError Pa_GetSampleSize( PaSampleFormat format )
 {
     int result;
 
-    PA_LOGAPI(("Pa_GetSampleSize called:\n" ));
+    PA_LOGAPI_ENTER_PARAMS( "Pa_GetSampleSize" );
     PA_LOGAPI(("\tPaSampleFormat format: %d\n", format ));
 
     switch( format & ~paNonInterleaved )
@@ -1769,8 +1752,7 @@ PaError Pa_GetSampleSize( PaSampleFormat format )
         break;
     }
 
-    PA_LOGAPI(("Pa_GetSampleSize returned:\n" ));
-    PA_LOGAPI(("\tPaError: %d ( %s )\n\n", result, Pa_GetErrorText( result ) ));
+    PA_LOGAPI_EXIT_PAERROR_OR_T_RESULT( "Pa_GetSampleSize", "int: %d", result );
 
     return (PaError) result;
 }
