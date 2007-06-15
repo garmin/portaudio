@@ -406,10 +406,12 @@ const char *Pa_GetErrorText( PaError errorCode )
     case paCanNotReadFromAnOutputOnlyStream:    result = "Can't read from an output only stream"; break;
     case paCanNotWriteToAnInputOnlyStream:      result = "Can't write to an input only stream"; break;
     default:                         
-                                    if( errorCode > 0 )
-                                        result = "Invalid error code (value greater than zero)"; break;
-                                    else
-                                        result = "Invalid error code"; break;
+		if( errorCode > 0 ){
+			result = "Invalid error code (value greater than zero)"; 
+			break;
+		}
+        else
+			result = "Invalid error code"; break;
     }
     return result;
 }
