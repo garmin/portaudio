@@ -562,7 +562,7 @@ const PaHostApiInfo* Pa_GetHostApiInfo( PaHostApiIndex hostApi )
         info = NULL;
 
         PA_LOGAPI(("Pa_GetHostApiInfo returned:\n" ));
-        PA_LOGAPI(("\tPaHostApiInfo*: NULL [ PortAudio not initialized ]\n\n" ));
+        PA_LOGAPI(("\tPaHostApiInfo*: NULL [ PortAudio not initialized ]\n" ));
 
     }
     else if( hostApi < 0 || hostApi >= hostApisCount_ )
@@ -570,7 +570,7 @@ const PaHostApiInfo* Pa_GetHostApiInfo( PaHostApiIndex hostApi )
         info = NULL;
 
         PA_LOGAPI(("Pa_GetHostApiInfo returned:\n" ));
-        PA_LOGAPI(("\tPaHostApiInfo*: NULL [ hostApi out of range ]\n\n" ));
+        PA_LOGAPI(("\tPaHostApiInfo*: NULL [ hostApi out of range ]\n" ));
 
     }
     else
@@ -579,11 +579,11 @@ const PaHostApiInfo* Pa_GetHostApiInfo( PaHostApiIndex hostApi )
 
         PA_LOGAPI(("Pa_GetHostApiInfo returned:\n" ));
         PA_LOGAPI(("\tPaHostApiInfo*: 0x%p\n", info ));
-        PA_LOGAPI(("\t{" ));
+        PA_LOGAPI(("\t{\n" ));
         PA_LOGAPI(("\t\tint structVersion: %d\n", info->structVersion ));
         PA_LOGAPI(("\t\tPaHostApiTypeId type: %d\n", info->type ));
-        PA_LOGAPI(("\t\tconst char *name: %s\n\n", info->name ));
-        PA_LOGAPI(("\t}\n\n" ));
+        PA_LOGAPI(("\t\tconst char *name: %s\n", info->name ));
+        PA_LOGAPI(("\t}\n" ));
 
     }
 
@@ -711,7 +711,7 @@ const PaDeviceInfo* Pa_GetDeviceInfo( PaDeviceIndex device )
         result = NULL;
 
         PA_LOGAPI(("Pa_GetDeviceInfo returned:\n" ));
-        PA_LOGAPI(("\tPaDeviceInfo* NULL [ invalid device index ]\n\n" ));
+        PA_LOGAPI(("\tPaDeviceInfo* NULL [ invalid device index ]\n" ));
 
     }
     else
@@ -727,7 +727,7 @@ const PaDeviceInfo* Pa_GetDeviceInfo( PaDeviceIndex device )
         PA_LOGAPI(("\t\tPaHostApiIndex hostApi: %d\n", result->hostApi ));
         PA_LOGAPI(("\t\tint maxInputChannels: %d\n", result->maxInputChannels ));
         PA_LOGAPI(("\t\tint maxOutputChannels: %d\n", result->maxOutputChannels ));
-        PA_LOGAPI(("\t}\n\n" ));
+        PA_LOGAPI(("\t}\n" ));
 
     }
 
@@ -1076,9 +1076,9 @@ PaError Pa_IsFormatSupported( const PaStreamParameters *inputParameters,
 #ifdef PA_LOG_API_CALLS
     PA_LOGAPI(("Pa_OpenStream returned:\n" ));
     if( result == paFormatIsSupported )
-        PA_LOGAPI(("\tPaError: 0 [ paFormatIsSupported ]\n\n" ));
+        PA_LOGAPI(("\tPaError: 0 [ paFormatIsSupported ]\n" ));
     else
-        PA_LOGAPI(("\tPaError: %d ( %s )\n\n", result, Pa_GetErrorText( result ) ));
+        PA_LOGAPI(("\tPaError: %d ( %s )\n", result, Pa_GetErrorText( result ) ));
 #endif
 
     return result;
@@ -1140,7 +1140,7 @@ PaError Pa_OpenStream( PaStream** stream,
 
         PA_LOGAPI(("Pa_OpenStream returned:\n" ));
         PA_LOGAPI(("\t*(PaStream** stream): undefined\n" ));
-        PA_LOGAPI(("\tPaError: %d ( %s )\n\n", result, Pa_GetErrorText( result ) ));
+        PA_LOGAPI(("\tPaError: %d ( %s )\n", result, Pa_GetErrorText( result ) ));
         return result;
     }
 
@@ -1155,7 +1155,7 @@ PaError Pa_OpenStream( PaStream** stream,
 
         PA_LOGAPI(("Pa_OpenStream returned:\n" ));
         PA_LOGAPI(("\t*(PaStream** stream): undefined\n" ));
-        PA_LOGAPI(("\tPaError: %d ( %s )\n\n", result, Pa_GetErrorText( result ) ));
+        PA_LOGAPI(("\tPaError: %d ( %s )\n", result, Pa_GetErrorText( result ) ));
         return result;
     }
 
@@ -1170,7 +1170,7 @@ PaError Pa_OpenStream( PaStream** stream,
     {
         PA_LOGAPI(("Pa_OpenStream returned:\n" ));
         PA_LOGAPI(("\t*(PaStream** stream): undefined\n" ));
-        PA_LOGAPI(("\tPaError: %d ( %s )\n\n", result, Pa_GetErrorText( result ) ));
+        PA_LOGAPI(("\tPaError: %d ( %s )\n", result, Pa_GetErrorText( result ) ));
         return result;
     }
 
@@ -1213,7 +1213,7 @@ PaError Pa_OpenStream( PaStream** stream,
 
     PA_LOGAPI(("Pa_OpenStream returned:\n" ));
     PA_LOGAPI(("\t*(PaStream** stream): 0x%p\n", *stream ));
-    PA_LOGAPI(("\tPaError: %d ( %s )\n\n", result, Pa_GetErrorText( result ) ));
+    PA_LOGAPI(("\tPaError: %d ( %s )\n", result, Pa_GetErrorText( result ) ));
 
     return result;
 }
@@ -1296,7 +1296,7 @@ PaError Pa_OpenDefaultStream( PaStream** stream,
 
     PA_LOGAPI(("Pa_OpenDefaultStream returned:\n" ));
     PA_LOGAPI(("\t*(PaStream** stream): 0x%p", *stream ));
-    PA_LOGAPI(("\tPaError: %d ( %s )\n\n", result, Pa_GetErrorText( result ) ));
+    PA_LOGAPI(("\tPaError: %d ( %s )\n", result, Pa_GetErrorText( result ) ));
 
     return result;
 }
@@ -1502,7 +1502,7 @@ const PaStreamInfo* Pa_GetStreamInfo( PaStream *stream )
         result = 0;
 
         PA_LOGAPI(("Pa_GetStreamInfo returned:\n" ));
-        PA_LOGAPI(("\tconst PaStreamInfo*: 0 [PaError error:%d ( %s )]\n\n", result, error, Pa_GetErrorText( error ) ));
+        PA_LOGAPI(("\tconst PaStreamInfo*: 0 [PaError error:%d ( %s )]\n", result, error, Pa_GetErrorText( error ) ));
 
     }
     else
@@ -1517,7 +1517,7 @@ const PaStreamInfo* Pa_GetStreamInfo( PaStream *stream )
         PA_LOGAPI(("\t\tPaTime inputLatency: %f\n", result->inputLatency ));
         PA_LOGAPI(("\t\tPaTime outputLatency: %f\n", result->outputLatency ));
         PA_LOGAPI(("\t\tdouble sampleRate: %f\n", result->sampleRate ));
-        PA_LOGAPI(("\t}\n\n" ));
+        PA_LOGAPI(("\t}\n" ));
 
     }
 
@@ -1538,7 +1538,7 @@ PaTime Pa_GetStreamTime( PaStream *stream )
         result = 0;
 
         PA_LOGAPI(("Pa_GetStreamTime returned:\n" ));
-        PA_LOGAPI(("\tPaTime: 0 [PaError error:%d ( %s )]\n\n", result, error, Pa_GetErrorText( error ) ));
+        PA_LOGAPI(("\tPaTime: 0 [PaError error:%d ( %s )]\n", result, error, Pa_GetErrorText( error ) ));
 
     }
     else
@@ -1546,7 +1546,7 @@ PaTime Pa_GetStreamTime( PaStream *stream )
         result = PA_STREAM_INTERFACE(stream)->GetTime( stream );
 
         PA_LOGAPI(("Pa_GetStreamTime returned:\n" ));
-        PA_LOGAPI(("\tPaTime: %g\n\n", result ));
+        PA_LOGAPI(("\tPaTime: %g\n", result ));
 
     }
 
@@ -1568,7 +1568,7 @@ double Pa_GetStreamCpuLoad( PaStream* stream )
         result = 0.0;
 
         PA_LOGAPI(("Pa_GetStreamCpuLoad returned:\n" ));
-        PA_LOGAPI(("\tdouble: 0.0 [PaError error: %d ( %s )]\n\n", error, Pa_GetErrorText( error ) ));
+        PA_LOGAPI(("\tdouble: 0.0 [PaError error: %d ( %s )]\n", error, Pa_GetErrorText( error ) ));
 
     }
     else
@@ -1576,7 +1576,7 @@ double Pa_GetStreamCpuLoad( PaStream* stream )
         result = PA_STREAM_INTERFACE(stream)->GetCpuLoad( stream );
 
         PA_LOGAPI(("Pa_GetStreamCpuLoad returned:\n" ));
-        PA_LOGAPI(("\tdouble: %g\n\n", result ));
+        PA_LOGAPI(("\tdouble: %g\n", result ));
 
     }
 
@@ -1676,7 +1676,7 @@ signed long Pa_GetStreamReadAvailable( PaStream* stream )
         result = 0;
 
         PA_LOGAPI(("Pa_GetStreamReadAvailable returned:\n" ));
-        PA_LOGAPI(("\tunsigned long: 0 [ PaError error: %d ( %s ) ]\n\n", error, Pa_GetErrorText( error ) ));
+        PA_LOGAPI(("\tunsigned long: 0 [ PaError error: %d ( %s ) ]\n", error, Pa_GetErrorText( error ) ));
 
     }
     else
@@ -1684,7 +1684,7 @@ signed long Pa_GetStreamReadAvailable( PaStream* stream )
         result = PA_STREAM_INTERFACE(stream)->GetReadAvailable( stream );
 
         PA_LOGAPI(("Pa_GetStreamReadAvailable returned:\n" ));
-        PA_LOGAPI(("\tPaError: %d ( %s )\n\n", result, Pa_GetErrorText( result ) ));
+        PA_LOGAPI(("\tPaError: %d ( %s )\n", result, Pa_GetErrorText( result ) ));
 
     }
 
@@ -1705,7 +1705,7 @@ signed long Pa_GetStreamWriteAvailable( PaStream* stream )
         result = 0;
 
         PA_LOGAPI(("Pa_GetStreamWriteAvailable returned:\n" ));
-        PA_LOGAPI(("\tunsigned long: 0 [ PaError error: %d ( %s ) ]\n\n", error, Pa_GetErrorText( error ) ));
+        PA_LOGAPI(("\tunsigned long: 0 [ PaError error: %d ( %s ) ]\n", error, Pa_GetErrorText( error ) ));
 
     }
     else
@@ -1713,7 +1713,7 @@ signed long Pa_GetStreamWriteAvailable( PaStream* stream )
         result = PA_STREAM_INTERFACE(stream)->GetWriteAvailable( stream );
 
         PA_LOGAPI(("Pa_GetStreamWriteAvailable returned:\n" ));
-        PA_LOGAPI(("\tPaError: %d ( %s )\n\n", result, Pa_GetErrorText( result ) ));
+        PA_LOGAPI(("\tPaError: %d ( %s )\n", result, Pa_GetErrorText( result ) ));
 
     }
 
