@@ -1,12 +1,12 @@
 /** @file patest_timing.c
 	@ingroup test_src
-	@brief Play a sine wave for several seconds, and spits out a ton of timing info while it's at it. Based on patet_sine.c
+	@brief Play a sine wave for several seconds, and spits out a ton of timing info while it's at it. Based on patest_sine.c
 	@author Bjorn Roche
 	@author Ross Bencina <rossb@audiomulch.com>
     @author Phil Burk <philburk@softsynth.com>
 */
 /*
- * $Id: patest_sine.c 578 2003-09-02 04:17:38Z rossbencina $
+ * $Id: patest_timing.c 578 2003-09-02 04:17:38Z rossbencina $
  *
  * This program uses the PortAudio Portable Audio Library.
  * For more information see: http://www.portaudio.com/
