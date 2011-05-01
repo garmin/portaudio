@@ -282,29 +282,29 @@ typedef struct PaUtilHostApiRepresentation {
      internal data structures, instead it is the first step in a two-stage commit 
      process which will be completed only if all host API scans return with no errors.
 
-     Some time later the caller will either (1) pass newDevicesInfo and newDeviceCount
-     to CommitDeviceInfos() to complete the transaction, or (2) pass newDevicesInfo 
+     Some time later the caller will either (1) pass scanResults and newDeviceCount
+     to CommitDeviceInfos() to complete the transaction, or (2) pass scanResults 
      and newDeviceCount to DisposeDeviceInfos() to abort the transaction.
      */
-    PaError (*ScanDeviceInfos)( struct PaUtilHostApiRepresentation *hostApi, PaHostApiIndex index, void **newDevicesInfo, int *newDeviceCount );
+    PaError (*ScanDeviceInfos)( struct PaUtilHostApiRepresentation *hostApi, PaHostApiIndex index, void **scanResults, int *newDeviceCount );
 
     /**
      Replace the previous device information with the device information
-     passed in as an argument. This is the second/final stage of the two-stage
-     transaction required for updating the available device information.
+     passed in as an argument via scanResults. This is the second/final stage of 
+     the two-stage transaction required for updating the available device information.
      This function should free any resources associated with the previous device 
      information.
      @FIXME: this function should probably not return an error code as it should not be 
      permitted to fail.
      */
-    PaError (*CommitDeviceInfos)( struct PaUtilHostApiRepresentation *hostApi, PaHostApiIndex index, void *devicesInfo, int deviceCount );
+    PaError (*CommitDeviceInfos)( struct PaUtilHostApiRepresentation *hostApi, PaHostApiIndex index, void *scanResults, int deviceCount );
 
     /**
      Free device information previously returned by ScanDeviceInfos(). This function
      will be called in cases where the update available device info transaction 
      failed for some reason.
      */
-    PaError (*DisposeDeviceInfos)( struct PaUtilHostApiRepresentation *hostApi, void *devicesInfo, int deviceCount );
+    PaError (*DisposeDeviceInfos)( struct PaUtilHostApiRepresentation *hostApi, void *scanResults, int deviceCount );
 
 } PaUtilHostApiRepresentation;
 
