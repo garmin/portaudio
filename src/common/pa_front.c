@@ -688,6 +688,117 @@ PaDeviceIndex Pa_GetDefaultOutputDevice( void )
 }
 
 
+PaError Pa_UpdateAvailableDeviceList( void )
+{
+    PaError result     = paNoError;
+    void **scanResults = NULL;
+    int  *deviceCounts = NULL;
+    int i = 0;
+
+    PA_LOGAPI_ENTER( "Pa_UpdateAvailableDeviceList" );
+    if( !PA_IS_INITIALISED_ )
+    {
+        result = paNotInitialized;
+        goto done;
+    }
+
+    /* Allocate data structures used in 2-stage commit */
+    scanResults = (void **) PaUtil_AllocateMemory( sizeof(void*) * hostApisCount_ );
+    if( !scanResults )
+    {
+        result = paInsufficientMemory;
+        goto done;
+    }
+
+    deviceCounts = ( int * ) PaUtil_AllocateMemory( sizeof( int ) * hostApisCount_ );
+    if( !deviceCounts )
+    {
+        result = paInsufficientMemory;
+        goto done;
+    }
+
+    /* Phase 1: Perform a scan of new devices */
+    for( i = 0 ; i < hostApisCount_ ; ++i )
+    {
+        PaUtilHostApiRepresentation *hostApi = hostApis_[i];
+        if( hostApi->ScanDeviceInfos == NULL )
+            continue;
+
+        PA_DEBUG(( "Scanning new device list for host api %d.\n",i));
+        if( hostApi->ScanDeviceInfos( hostApi, i, &scanResults[ i ], &deviceCounts[ i ] ) != paNoError )
+            break;
+
+    }
+
+    /* Check the result of the scan operation */
+    if( i < hostApisCount_ )
+    {
+        /* If failure, rollback the scan changes back to original state */
+        int j = 0;
+        for( j = 0 ; j < i ; ++j )
+        {
+            PaUtilHostApiRepresentation *hostApi = hostApis_[j];
+            if( hostApi->DisposeDeviceInfos == NULL )
+                continue;
+
+            PA_DEBUG(( "Performing rollback for device list scan for host api %d.\n",i));
+            hostApi->DisposeDeviceInfos( hostApi, scanResults[ j ], deviceCounts[ j ] );
+        }
+    }
+    else
+    {
+        int baseDeviceIndex = 0;
+        deviceCount_ = 0;
+
+        /* Otherwise, commit the scan changes to each back-end */
+        for( i = 0 ; i < hostApisCount_ ; ++i )
+        {
+            PaUtilHostApiRepresentation *hostApi = hostApis_[i];
+            if( hostApi->CommitDeviceInfos == NULL )
+            {
+                /* Not yet implemented for this backend. Just
+                   assume that the baseDeviceIndex and the deviceCount_ are
+                   incremented according to the values in the info */
+                baseDeviceIndex += hostApi->info.deviceCount;
+                deviceCount_ += hostApi->info.deviceCount;
+                continue;
+            }
+
+            PA_DEBUG(( "Committing device list scan for host api %d.\n",i));
+            if( hostApi->CommitDeviceInfos( hostApi, i, scanResults[ i ], deviceCounts[ i ] ) != paNoError )
+            {
+                PA_DEBUG(( "Committing failed (shouldn't happen) %d.\n",i));
+                result = paInternalError;
+                goto done;
+            }
+
+            assert( hostApi->info.defaultInputDevice < hostApi->info.deviceCount );
+            assert( hostApi->info.defaultOutputDevice < hostApi->info.deviceCount );
+
+            hostApi->privatePaFrontInfo.baseDeviceIndex = baseDeviceIndex;
+
+            if( hostApi->info.defaultInputDevice != paNoDevice )
+                hostApi->info.defaultInputDevice += baseDeviceIndex;
+
+            if( hostApi->info.defaultOutputDevice != paNoDevice )
+                hostApi->info.defaultOutputDevice += baseDeviceIndex;
+
+            baseDeviceIndex += hostApi->info.deviceCount;
+            deviceCount_ += hostApi->info.deviceCount;
+        }
+    }
+
+done:
+
+    if( scanResults )
+        PaUtil_FreeMemory( scanResults );
+
+    if( deviceCounts )
+        PaUtil_FreeMemory( deviceCounts );
+
+    return result;
+}
+
 const PaDeviceInfo* Pa_GetDeviceInfo( PaDeviceIndex device )
 {
     int hostSpecificDeviceIndex;
