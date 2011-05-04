@@ -1165,6 +1165,13 @@ void Pa_Sleep( long msec );
 
 
 
+typedef void PaDevicesChangedCallback( void *userData );
+
+PaError Pa_SetDevicesChangedCallback( void *userData, PaStreamFinishedCallback* devicesChangedCallback ); 
+
+
+
+
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
