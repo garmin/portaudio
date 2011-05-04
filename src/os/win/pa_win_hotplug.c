@@ -131,6 +131,9 @@ PA_THREAD_FUNC PaRunMessageLoop(void* ptr)
         NotificationFilter.dbcc_devicetype = DBT_DEVTYP_DEVICEINTERFACE;
         NotificationFilter.dbcc_classguid = WceusbshGUID;
 
+#ifndef DEVICE_NOTIFY_ALL_INTERFACE_CLASSES
+#define DEVICE_NOTIFY_ALL_INTERFACE_CLASSES 0x00000004
+#endif
         pInfo->hNotify = RegisterDeviceNotificationA( 
             pInfo->hWnd,                
             &NotificationFilter,        
