@@ -18,9 +18,18 @@ void printDevices()
     }
 }
 
+static void devicesChangedCallback(void* p)
+{
+    (void)p;
+
+    printf( "Portaudio device list have changed!\n" );
+}
+
 int main(int argc, char* argv[])
 {
     Pa_Initialize();
+
+    Pa_SetDevicesChangedCallback(NULL, devicesChangedCallback);
 
     for(;;){
         printDevices();
