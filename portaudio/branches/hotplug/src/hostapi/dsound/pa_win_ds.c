@@ -599,7 +599,7 @@ static PaError AddOutputDeviceInfoFromDirectSound(
 {
     PaDeviceInfo                 *deviceInfo = &winDsDeviceInfo->inheritedDeviceInfo;
     HRESULT                       hr;
-    LPDIRECTSOUND                 lpDirectSound = 0;
+    LPDIRECTSOUND                 lpDirectSound = NULL;
     DSCAPS                        caps;
     PaError                       result = paNoError;
     int                           i;
