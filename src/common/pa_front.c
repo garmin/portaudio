@@ -326,6 +326,9 @@ PaError Pa_Initialize( void )
         PaUtil_InitializeClock();
         PaUtil_ResetTraceMessages();
 
+        /* Initialize hot plug here, so all its internal info is setup */
+        PaUtil_InitializeHotPlug();
+
         result = InitializeHostApis();
         if( result == paNoError )
             ++paInternalInfo_.initializationCount_;
@@ -1875,30 +1878,29 @@ PaError Pa_GetSampleSize( PaSampleFormat format )
     return (PaError) result;
 }
 
+extern void PaUtil_LockHotPlug();
+extern void PaUtil_UnlockHotPlug();
 
 
 PaError Pa_SetDevicesChangedCallback( void *userData, PaStreamFinishedCallback* devicesChangedCallback )
 {
-    if (paInternalInfo_.devicesChangedCallback_ != NULL)
-    {
-        return paUnanticipatedHostError;
-    }
-
-    paInternalInfo_.devicesChangedCallbackUserData_ = userData;
+    PaUtil_LockHotPlug();
     paInternalInfo_.devicesChangedCallback_ = devicesChangedCallback;
-
-    /* Only initialize hot plug event handling here */
-    PaUtil_InitializeHotPlug();
-
+    paInternalInfo_.devicesChangedCallbackUserData_ = userData;
+    PaUtil_UnlockHotPlug();
     return paNoError;
 }
 
 /* Called whenever a OS audio device change has been detected */
-void PaUtil_DevicesChanged(void)
+void PaUtil_DevicesChanged(unsigned state, void* pData)
 {
+    (void)state;
+    (void)pData;
+    PaUtil_LockHotPlug();
     if (paInternalInfo_.devicesChangedCallback_)
     {
         (paInternalInfo_.devicesChangedCallback_)(paInternalInfo_.devicesChangedCallbackUserData_);
     }
+    PaUtil_UnlockHotPlug();
 }
 
