@@ -16,6 +16,11 @@
 
 #include <stdio.h>
 
+#if (defined(WIN32) && (defined(_MSC_VER) && (_MSC_VER >= 1200))) /* MSC version 6 and above */
+#pragma comment( lib, "setupapi.lib" )
+#endif
+
+
 /* Implemented in pa_front.c 
   @param first  0 = unknown, 1 = insertion, 2 = removal
   @param second Host specific device change info (in windows it is the device path)
