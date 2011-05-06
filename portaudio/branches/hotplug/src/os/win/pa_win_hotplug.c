@@ -1,6 +1,7 @@
 
 #include "pa_util.h"
 #include "pa_debugprint.h"
+#include "pa_allocation.h"
 
 #include "pa_win_wdmks_utils.h"
 
@@ -13,8 +14,11 @@
 
 #include <stdio.h>
 
-/* Implemented in pa_front.c */
-extern void PaUtil_DevicesChanged();
+/* Implemented in pa_front.c 
+  @param first  A bit map of 1 = insertion, 2 = removal. Value of zero is = unknown
+  @param second Host specific device change info
+*/
+extern void PaUtil_DevicesChanged(unsigned, void*);
 
 /* use CreateThread for CYGWIN/Windows Mobile, _beginthreadex for all others */
 #if !defined(__CYGWIN__) && !defined(_WIN32_WCE)
@@ -25,21 +29,103 @@ extern void PaUtil_DevicesChanged();
 #define PA_THREAD_FUNC static DWORD WINAPI
 #endif
 
+typedef struct PaHotPlugDeviceInfo
+{
+    TCHAR   name[MAX_PATH];
+    struct PaHotPlugDeviceInfo* next;
+} PaHotPlugDeviceInfo;
+
 typedef struct PaHotPlugDeviceEventHandlerInfo
 {
     HANDLE  hWnd;
     HANDLE  hMsgThread;
     HANDLE  hNotify;
+    CRITICAL_SECTION lock;
+    PaUtilAllocationGroup* cacheAllocGroup;
+    PaHotPlugDeviceInfo* cache;
+
 } PaHotPlugDeviceEventHandlerInfo;
+
+static BOOL RemoveDeviceFromCache(PaHotPlugDeviceEventHandlerInfo* pInfo, const TCHAR* name)
+{
+    if (pInfo->cache != NULL)
+    {
+        PaHotPlugDeviceInfo* lastEntry = 0;
+        PaHotPlugDeviceInfo* entry = pInfo->cache;
+        while (entry != NULL)
+        {
+            if (strcmp(entry->name, name) == 0)
+            {
+                if (lastEntry)
+                {
+                    lastEntry->next = entry->next;
+                }
+                else
+                {
+                    pInfo->cache = NULL;
+                }
+                PaUtil_GroupFreeMemory(pInfo->cacheAllocGroup, entry);
+                return TRUE;
+            }
+
+            lastEntry = entry;
+            entry = entry->next;
+        }
+    }
+    return FALSE;
+}
+
+static void InsertDeviceIntoCache(PaHotPlugDeviceEventHandlerInfo* pInfo, const TCHAR* name)
+{
+    PaHotPlugDeviceInfo** ppEntry = NULL;
+
+    /* Remove it first (if possible) so we don't accidentally get duplicates */
+    RemoveDeviceFromCache(pInfo, name);
+
+    if (pInfo->cache == NULL)
+    {
+        ppEntry = &pInfo->cache;
+    }
+    else
+    {
+        PaHotPlugDeviceInfo* entry = pInfo->cache;
+        while (entry->next != NULL)
+        {
+            entry = entry->next;
+        }
+        ppEntry = &entry->next;
+    }
+
+    *ppEntry = (PaHotPlugDeviceInfo*)PaUtil_GroupAllocateMemory(pInfo->cacheAllocGroup, sizeof(PaHotPlugDeviceInfo));
+#ifdef UNICODE
+    wcsncpy((*ppEntry)->name, name, MAX_PATH-1);
+#else
+    strncpy((*ppEntry)->name, name, MAX_PATH-1);
+#endif
+    (*ppEntry)->next = NULL;
+}
+
+static BOOL ResidesInCache(PaHotPlugDeviceEventHandlerInfo* pInfo, const TCHAR* name)
+{
+    if (pInfo->cache != NULL)
+    {
+        PaHotPlugDeviceInfo* entry = pInfo->cache;
+        while (entry != NULL)
+        {
+            if (strcmp(entry->name, name) == 0)
+            {
+                return TRUE;
+            }
+
+            entry = entry->next;
+        }
+    }
+    return FALSE;
+}
+
 
 static BOOL IsDeviceAudio(const TCHAR* deviceName)
 {
-#if 0
-    /* This code below will make sure that only AUDIO devices insertion is notified (MIDI devices
-       "unfortunately" have the KSCATEGORY_AUDIO also...)
-
-       There is a problem with removal though, since a removed device cannot be queried
-       for its channel count... */
     int channelCnt = 0;
 
 #ifdef UNICODE
@@ -52,23 +138,13 @@ static BOOL IsDeviceAudio(const TCHAR* deviceName)
     channelCnt |= PaWin_WDMKS_QueryFilterMaximumChannelCount(name, 0);
 
     return (channelCnt != 0);
-#else
-    return TRUE;
-#endif
 }
 
 static LRESULT CALLBACK sWinProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
+    PaHotPlugDeviceEventHandlerInfo* pInfo = (PaHotPlugDeviceEventHandlerInfo*)( GetWindowLongPtr(hWnd, GWLP_USERDATA) );
     switch(msg)
     {
-    case WM_QUERYENDSESSION:
-    case WM_POWERBROADCAST:
-        return TRUE;
-
-    case WM_CLOSE:
-        PostMessage(hWnd, WM_QUIT, 0, 0);
-        break;
-
     case WM_DEVICECHANGE:
         switch(wParam)
         {
@@ -78,13 +154,11 @@ static LRESULT CALLBACK sWinProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
                 if (ptr->dbcc_devicetype != DBT_DEVTYP_DEVICEINTERFACE)
                     break;
 
-                if (!IsEqualGUID(&ptr->dbcc_classguid, &KSCATEGORY_AUDIO))
-                    break;
-
                 if (IsDeviceAudio(ptr->dbcc_name))
                 {
                     PA_DEBUG(("Device inserted: %s\n", ptr->dbcc_name));
-                    PaUtil_DevicesChanged();
+                    InsertDeviceIntoCache(pInfo, ptr->dbcc_name);
+                    PaUtil_DevicesChanged(1, ptr->dbcc_name);
                 }
             }
             break;
@@ -94,13 +168,12 @@ static LRESULT CALLBACK sWinProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
                 if (ptr->dbcc_devicetype != DBT_DEVTYP_DEVICEINTERFACE)
                     break;
 
-                if (!IsEqualGUID(&ptr->dbcc_classguid, &KSCATEGORY_AUDIO))
-                    break;
 
-                if (IsDeviceAudio(ptr->dbcc_name))
+                if (!ResidesInCache(pInfo, ptr->dbcc_name) || 
+                    RemoveDeviceFromCache(pInfo, ptr->dbcc_name))
                 {
                     PA_DEBUG(("Device removed : %s\n", ptr->dbcc_name));
-                    PaUtil_DevicesChanged();
+                    PaUtil_DevicesChanged(2, ptr->dbcc_name);
                 }
             }
             break;
@@ -121,26 +194,22 @@ PA_THREAD_FUNC PaRunMessageLoop(void* ptr)
     wnd.lpfnWndProc = sWinProc;
     wnd.hInstance = hInstance;
     wnd.lpszClassName = "{1E0D4F5A-B31F-4dcc-AE3C-4F30A47BD521}";   /* Using a GUID as class name */
-    /* Need a top level invisible window in order to receive OS broadcast messages */
-    pInfo->hWnd = CreateWindowA(MAKEINTATOM(RegisterClassA(&wnd)), "window", 0, 0, 0, 0, 0, NULL, NULL, hInstance, NULL);
+    pInfo->hWnd = CreateWindowA(MAKEINTATOM(RegisterClassA(&wnd)), NULL, 0, 0, 0, 0, 0, HWND_MESSAGE, NULL, hInstance, NULL);
     if (pInfo->hWnd)
     {
-        // Media GUID = {4d36e96c-e325-11ce-bfc1-08002be10318}
-        const GUID WceusbshGUID = { 0x04d36e96c, 0xe325, 0x11ce, 0xbf,0xc1,0x08,0x00,0x2b,0xe1,0x03,0x18 };
         DEV_BROADCAST_DEVICEINTERFACE_A NotificationFilter = { sizeof(DEV_BROADCAST_DEVICEINTERFACE) };
         NotificationFilter.dbcc_devicetype = DBT_DEVTYP_DEVICEINTERFACE;
-        NotificationFilter.dbcc_classguid = WceusbshGUID;
+        NotificationFilter.dbcc_classguid = KSCATEGORY_AUDIO;
 
-#ifndef DEVICE_NOTIFY_ALL_INTERFACE_CLASSES
-#define DEVICE_NOTIFY_ALL_INTERFACE_CLASSES 0x00000004
-#endif
         pInfo->hNotify = RegisterDeviceNotificationA( 
             pInfo->hWnd,                
             &NotificationFilter,        
-            DEVICE_NOTIFY_WINDOW_HANDLE|DEVICE_NOTIFY_ALL_INTERFACE_CLASSES
+            DEVICE_NOTIFY_WINDOW_HANDLE
             );
 
         assert(pInfo->hNotify);
+
+        SetWindowLongPtr(pInfo->hWnd, GWLP_USERDATA, (LONG_PTR)pInfo);
 
         if (pInfo->hNotify)
         {
@@ -173,6 +242,8 @@ void PaUtil_InitializeHotPlug()
         s_handler = (PaHotPlugDeviceEventHandlerInfo*)PaUtil_AllocateMemory(sizeof(PaHotPlugDeviceEventHandlerInfo));
         if (s_handler)
         {
+            s_handler->cacheAllocGroup = PaUtil_CreateAllocationGroup();
+            InitializeCriticalSection(&s_handler->lock);
             /* Start message thread */
             s_handler->hMsgThread = CREATE_THREAD_FUNCTION(NULL, 0, PaRunMessageLoop, s_handler, 0, NULL);
             assert(s_handler->hMsgThread != 0);
@@ -192,7 +263,20 @@ void PaUtil_TerminateHotPlug()
                 TerminateThread(s_handler->hMsgThread, -1);
             }
         }
+        DeleteCriticalSection(&s_handler->lock);
+        PaUtil_FreeAllAllocations( s_handler->cacheAllocGroup );
+        PaUtil_DestroyAllocationGroup( s_handler->cacheAllocGroup );
         PaUtil_FreeMemory( s_handler );
         s_handler = 0;
     }
+}
+
+void PaUtil_LockHotPlug()
+{
+    EnterCriticalSection(&s_handler->lock);
+}
+
+void PaUtil_UnlockHotPlug()
+{
+    LeaveCriticalSection(&s_handler->lock);
 }
