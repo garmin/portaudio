@@ -23,7 +23,7 @@
 
 /* Implemented in pa_front.c 
   @param first  0 = unknown, 1 = insertion, 2 = removal
-  @param second Host specific device change info (in windows it is the device path)
+  @param second Host specific device change info (in windows it is the (unicode) device path)
 */
 extern void PaUtil_DevicesChanged(unsigned, void*);
 
@@ -38,7 +38,7 @@ extern void PaUtil_DevicesChanged(unsigned, void*);
 
 typedef struct PaHotPlugDeviceInfo
 {
-    TCHAR   name[MAX_PATH];
+    wchar_t                     name[MAX_PATH];
     struct PaHotPlugDeviceInfo* next;
 } PaHotPlugDeviceInfo;
 
@@ -53,7 +53,8 @@ typedef struct PaHotPlugDeviceEventHandlerInfo
 
 } PaHotPlugDeviceEventHandlerInfo;
 
-static BOOL RemoveDeviceFromCache(PaHotPlugDeviceEventHandlerInfo* pInfo, const TCHAR* name)
+
+static BOOL RemoveDeviceFromCache(PaHotPlugDeviceEventHandlerInfo* pInfo, const wchar_t* name)
 {
     if (pInfo->cache != NULL)
     {
@@ -61,7 +62,7 @@ static BOOL RemoveDeviceFromCache(PaHotPlugDeviceEventHandlerInfo* pInfo, const 
         PaHotPlugDeviceInfo* entry = pInfo->cache;
         while (entry != NULL)
         {
-            if (_stricmp(entry->name, name) == 0)
+            if (_wcsicmp(entry->name, name) == 0)
             {
                 if (lastEntry)
                 {
@@ -82,7 +83,7 @@ static BOOL RemoveDeviceFromCache(PaHotPlugDeviceEventHandlerInfo* pInfo, const 
     return FALSE;
 }
 
-static void InsertDeviceIntoCache(PaHotPlugDeviceEventHandlerInfo* pInfo, const TCHAR* name)
+static void InsertDeviceIntoCache(PaHotPlugDeviceEventHandlerInfo* pInfo, const wchar_t* name)
 {
     PaHotPlugDeviceInfo** ppEntry = NULL;
 
@@ -104,85 +105,67 @@ static void InsertDeviceIntoCache(PaHotPlugDeviceEventHandlerInfo* pInfo, const 
     }
 
     *ppEntry = (PaHotPlugDeviceInfo*)PaUtil_GroupAllocateMemory(pInfo->cacheAllocGroup, sizeof(PaHotPlugDeviceInfo));
-#ifdef UNICODE
     wcsncpy((*ppEntry)->name, name, MAX_PATH-1);
-#else
-    strncpy((*ppEntry)->name, name, MAX_PATH-1);
-#endif
     (*ppEntry)->next = NULL;
 }
 
-static BOOL IsDeviceAudio(const TCHAR* deviceName)
+static BOOL IsDeviceAudio(const wchar_t* deviceName)
 {
     int channelCnt = 0;
-
-#ifdef UNICODE
-    const wchar_t* name = deviceName;
-#else
-    wchar_t name[MAX_PATH];
-    mbstowcs(name, deviceName, MAX_PATH-1);
-#endif
-    channelCnt += PaWin_WDMKS_QueryFilterMaximumChannelCount(name, 1);
-    channelCnt += PaWin_WDMKS_QueryFilterMaximumChannelCount(name, 0);
-
+    channelCnt += PaWin_WDMKS_QueryFilterMaximumChannelCount((void*)deviceName, 1);
+    channelCnt += PaWin_WDMKS_QueryFilterMaximumChannelCount((void*)deviceName, 0);
     return (channelCnt > 0);
 }
 
 static void PopulateCacheWithAvailableAudioDevices(PaHotPlugDeviceEventHandlerInfo* pInfo)
 {
     HDEVINFO handle = NULL;
-    const int sizeInterface = sizeof(SP_DEVICE_INTERFACE_DETAIL_DATA) + (MAX_PATH * sizeof(WCHAR));
-    SP_DEVICE_INTERFACE_DETAIL_DATA* devInterfaceDetails = (SP_DEVICE_INTERFACE_DETAIL_DATA*)PaUtil_AllocateMemory(sizeInterface);
+    const int sizeInterface = sizeof(SP_DEVICE_INTERFACE_DETAIL_DATA_W) + (MAX_PATH * sizeof(WCHAR));
+    SP_DEVICE_INTERFACE_DETAIL_DATA_W* devInterfaceDetails = (SP_DEVICE_INTERFACE_DETAIL_DATA_W*)PaUtil_AllocateMemory(sizeInterface);
 
     if (devInterfaceDetails)
     {
-        GUID* category_audio = (GUID*)&KSCATEGORY_AUDIO;
-        devInterfaceDetails->cbSize = sizeof(SP_DEVICE_INTERFACE_DETAIL_DATA);
+        devInterfaceDetails->cbSize = sizeof(SP_DEVICE_INTERFACE_DETAIL_DATA_W);
 
         /* Open a handle to search for devices (filters) */
-        handle = SetupDiGetClassDevs(category_audio,NULL,NULL,DIGCF_PRESENT | DIGCF_DEVICEINTERFACE);
+        handle = SetupDiGetClassDevsW(&KSCATEGORY_AUDIO,NULL,NULL,DIGCF_PRESENT | DIGCF_DEVICEINTERFACE);
         if( handle != NULL )
         {
             int device;
-            SP_DEVICE_INTERFACE_DATA interfaceData;
-            SP_DEVICE_INTERFACE_DATA aliasData;
-            SP_DEVINFO_DATA devInfoData;
-            int noError;
 
             /* Iterate through the devices */
             for( device = 0;;device++ )
             {
+                SP_DEVICE_INTERFACE_DATA interfaceData;
+                SP_DEVINFO_DATA devInfoData;
+                int noError;
+
                 interfaceData.cbSize = sizeof(SP_DEVICE_INTERFACE_DATA);
                 interfaceData.Reserved = 0;
-                aliasData.cbSize = sizeof(SP_DEVICE_INTERFACE_DATA);
-                aliasData.Reserved = 0;
                 devInfoData.cbSize = sizeof(SP_DEVINFO_DATA);
                 devInfoData.Reserved = 0;
 
-                noError = SetupDiEnumDeviceInterfaces(handle,NULL,category_audio,device,&interfaceData);
+                noError = SetupDiEnumDeviceInterfaces(handle,NULL,&KSCATEGORY_AUDIO,device,&interfaceData);
                 if( !noError )
                     break; /* No more devices */
 
-                noError = SetupDiGetDeviceInterfaceDetail(handle,&interfaceData,devInterfaceDetails,sizeInterface,NULL,&devInfoData);
+                noError = SetupDiGetDeviceInterfaceDetailW(handle,&interfaceData,devInterfaceDetails,sizeInterface,NULL,&devInfoData);
                 if( noError )
                 {
                     if (IsDeviceAudio(devInterfaceDetails->DevicePath))
                     {
-                        PA_DEBUG(("Hotplug cache populated with: '%s'\n", devInterfaceDetails->DevicePath));
+                        PA_DEBUG(("Hotplug cache populated with: '%S'\n", devInterfaceDetails->DevicePath));
                         InsertDeviceIntoCache(pInfo, devInterfaceDetails->DevicePath);
                     }
                 }
             }
             SetupDiDestroyDeviceInfoList(handle);
         }
-
         PaUtil_FreeMemory(devInterfaceDetails);
     }
-
 }
 
-
-static LRESULT CALLBACK PaMsgWinProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
+static LRESULT CALLBACK PaMsgWinProcW(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
     PaHotPlugDeviceEventHandlerInfo* pInfo = (PaHotPlugDeviceEventHandlerInfo*)( GetWindowLongPtr(hWnd, GWLP_USERDATA) );
     switch(msg)
@@ -192,7 +175,7 @@ static LRESULT CALLBACK PaMsgWinProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
         {
         case DBT_DEVICEARRIVAL:
             {
-                PDEV_BROADCAST_DEVICEINTERFACE ptr = (PDEV_BROADCAST_DEVICEINTERFACE)lParam;
+                PDEV_BROADCAST_DEVICEINTERFACE_W ptr = (PDEV_BROADCAST_DEVICEINTERFACE_W)lParam;
                 if (ptr->dbcc_devicetype != DBT_DEVTYP_DEVICEINTERFACE)
                     break;
 
@@ -201,7 +184,7 @@ static LRESULT CALLBACK PaMsgWinProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 
                 if (IsDeviceAudio(ptr->dbcc_name))
                 {
-                    PA_DEBUG(("Device inserted: %s\n", ptr->dbcc_name));
+                    PA_DEBUG(("Device inserted : %S\n", ptr->dbcc_name));
                     InsertDeviceIntoCache(pInfo, ptr->dbcc_name);
                     PaUtil_DevicesChanged(1, ptr->dbcc_name);
                 }
@@ -209,7 +192,7 @@ static LRESULT CALLBACK PaMsgWinProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
             break;
         case DBT_DEVICEREMOVECOMPLETE:
             {
-                PDEV_BROADCAST_DEVICEINTERFACE ptr = (PDEV_BROADCAST_DEVICEINTERFACE)lParam;
+                PDEV_BROADCAST_DEVICEINTERFACE_W ptr = (PDEV_BROADCAST_DEVICEINTERFACE_W)lParam;
                 if (ptr->dbcc_devicetype != DBT_DEVTYP_DEVICEINTERFACE)
                     break;
 
@@ -218,7 +201,7 @@ static LRESULT CALLBACK PaMsgWinProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 
                 if (RemoveDeviceFromCache(pInfo, ptr->dbcc_name))
                 {
-                    PA_DEBUG(("Device removed : %s\n", ptr->dbcc_name));
+                    PA_DEBUG(("Device removed  : %S\n", ptr->dbcc_name));
                     PaUtil_DevicesChanged(2, ptr->dbcc_name);
                 }
             }
@@ -228,29 +211,29 @@ static LRESULT CALLBACK PaMsgWinProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
         }
         break;
     }
-    return DefWindowProcA(hWnd, msg, wParam, lParam);
+    return DefWindowProcW(hWnd, msg, wParam, lParam);
 }
 
 PA_THREAD_FUNC PaRunMessageLoop(void* ptr)
 {
     PaHotPlugDeviceEventHandlerInfo* pInfo = (PaHotPlugDeviceEventHandlerInfo*)ptr;
-    WNDCLASSA wnd = { 0 };
-    HMODULE hInstance = GetModuleHandleA(NULL);
+    WNDCLASSW wnd = { 0 };
+    HMODULE hInstance = GetModuleHandleW(NULL);
 
-    wnd.lpfnWndProc = PaMsgWinProc;
+    wnd.lpfnWndProc = PaMsgWinProcW;
     wnd.hInstance = hInstance;
-    wnd.lpszClassName = "{1E0D4F5A-B31F-4dcc-AE3C-4F30A47BD521}";   /* Using a GUID as class name */
-    pInfo->hWnd = CreateWindowA(MAKEINTATOM(RegisterClassA(&wnd)), NULL, 0, 0, 0, 0, 0, HWND_MESSAGE, NULL, hInstance, NULL);
+    wnd.lpszClassName = L"{1E0D4F5A-B31F-4dcc-AE3C-4F30A47BD521}";   /* Using a GUID as class name */
+    pInfo->hWnd = CreateWindowW((LPCWSTR)MAKEINTATOM(RegisterClassW(&wnd)), NULL, 0, 0, 0, 0, 0, HWND_MESSAGE, NULL, hInstance, NULL);
     if (pInfo->hWnd)
     {
-        DEV_BROADCAST_DEVICEINTERFACE_A NotificationFilter = { sizeof(DEV_BROADCAST_DEVICEINTERFACE) };
+        DEV_BROADCAST_DEVICEINTERFACE_W NotificationFilter = { sizeof(DEV_BROADCAST_DEVICEINTERFACE_W) };
         NotificationFilter.dbcc_devicetype = DBT_DEVTYP_DEVICEINTERFACE;
 
 #ifndef DEVICE_NOTIFY_ALL_INTERFACE_CLASSES
 #define DEVICE_NOTIFY_ALL_INTERFACE_CLASSES  0x00000004
 #endif
 
-        pInfo->hNotify = RegisterDeviceNotificationA( 
+        pInfo->hNotify = RegisterDeviceNotificationW( 
             pInfo->hWnd,                
             &NotificationFilter,        
             DEVICE_NOTIFY_WINDOW_HANDLE|DEVICE_NOTIFY_ALL_INTERFACE_CLASSES
@@ -264,14 +247,14 @@ PA_THREAD_FUNC PaRunMessageLoop(void* ptr)
         {
             MSG msg; 
             BOOL result;
-            while((result = GetMessageA(&msg, pInfo->hWnd, 0, 0)) != 0) 
+            while((result = GetMessageW(&msg, pInfo->hWnd, 0, 0)) != 0) 
             { 
                 if (result == -1)
                 {
                     break;
                 }
                 TranslateMessage(&msg); 
-                DispatchMessageA(&msg); 
+                DispatchMessageW(&msg); 
             } 
             UnregisterDeviceNotification(pInfo->hNotify);
             pInfo->hNotify = 0;
