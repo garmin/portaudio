@@ -2054,6 +2054,7 @@ static PaError PinInstantiate(PaWinWdmPin* pin)
             /* First case when pin actually don't support the format */
             return paSampleFormatNotSupported;
         case ERROR_BAD_COMMAND:
+		case ERROR_NO_SYSTEM_RESOURCES:
             /* Case when pin is occupied (by another application) */
             return paDeviceUnavailable;
         default:
