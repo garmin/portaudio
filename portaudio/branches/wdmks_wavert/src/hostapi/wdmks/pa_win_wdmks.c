@@ -3367,6 +3367,8 @@ static PaError ScanDeviceInfos( struct PaUtilHostApiRepresentation *hostApi, PaH
             result = paInsufficientMemory;
             goto error;
         }
+        outArgument->defaultInputDevice = paNoDevice;
+        outArgument->defaultOutputDevice = paNoDevice;
 
         outArgument->deviceInfos = (PaDeviceInfo**)PaUtil_GroupAllocateMemory(
             wdmHostApi->allocations, sizeof(PaDeviceInfo*) * totalDeviceCount );
@@ -3476,12 +3478,22 @@ static PaError ScanDeviceInfos( struct PaUtilHostApiRepresentation *hostApi, PaH
                         /* INPUT ! */
                         deviceInfo->maxInputChannels  = pin->maxChannels;
                         deviceInfo->maxOutputChannels = 0;
+
+                        if (outArgument->defaultInputDevice == paNoDevice)
+                        {
+                            outArgument->defaultInputDevice = idxDevice;
+                        }
                     }
                     else
                     {
                         /* OUTPUT ! */
                         deviceInfo->maxInputChannels  = 0;
                         deviceInfo->maxOutputChannels = pin->maxChannels;
+
+                        if (outArgument->defaultOutputDevice == paNoDevice)
+                        {
+                            outArgument->defaultOutputDevice = idxDevice;
+                        }
                     }
 
                     /* These low values are not very useful because
@@ -4924,8 +4936,18 @@ static PaError OpenStream( struct PaUtilHostApiRepresentation *hostApi,
 
                 if (result != paNoError)
                 {
+                    unsigned long pos = 0xdeafbeef;
                     PA_DEBUG(("Failed to register capture position register, using PinGetAudioPositionViaIOCTL\n"));
                     stream->capture.pPin->fnAudioPosition = PinGetAudioPositionViaIOCTL;
+                    /* Test position function */
+                    result = (stream->capture.pPin->fnAudioPosition)(stream->capture.pPin, &pos);
+                    if (result != paNoError || pos != 0x0)
+                    {
+                        PA_DEBUG(("Failed to read capture position register (IOCTL)\n"));
+                        PaWinWDM_SetLastErrorInfo(paUnanticipatedHostError, "Failed to read capture position register (IOCTL)");
+                        result = paUnanticipatedHostError;
+                        goto error;
+                    }
                 }
                 else
                 {
@@ -5036,8 +5058,18 @@ static PaError OpenStream( struct PaUtilHostApiRepresentation *hostApi,
 
                 if (result != paNoError)
                 {
+                    unsigned long pos = 0xcafebabe;
                     PA_DEBUG(("Failed to register rendering position register, using PinGetAudioPositionViaIOCTL\n"));
                     stream->render.pPin->fnAudioPosition = PinGetAudioPositionViaIOCTL;
+                    /* Test position function */
+                    result = (stream->render.pPin->fnAudioPosition)(stream->render.pPin, &pos);
+                    if (result != paNoError || pos != 0x0)
+                    {
+                        PA_DEBUG(("Failed to read render position register (IOCTL)\n"));
+                        PaWinWDM_SetLastErrorInfo(paUnanticipatedHostError, "Failed to read render position register (IOCTL)");
+                        result = paUnanticipatedHostError;
+                        goto error;
+                    }
                 }
                 else
                 {
