@@ -195,6 +195,8 @@ int main(void)
         channel->phaseIncr_ = (440.0f * powf(2.f, (2.f * i) / 12.f)) * TABLE_SIZE / SAMPLE_RATE;
     }
 
+    printf("Using device '%s' with %d channels\n", info->name, info->maxOutputChannels);
+
     err = Pa_OpenStream(
               &stream,
               NULL, /* no input */
@@ -209,11 +211,8 @@ int main(void)
     err = Pa_StartStream( stream );
     if( err != paNoError ) goto error;
 
-    {
-        const unsigned kDelay = 2 * NUM_SECONDS_PER_CHANNEL * data.noOfChannels;
-        printf("Play for %d seconds\n", kDelay);
-        Pa_Sleep( kDelay * 1000 );
-    }
+    printf("Hit ENTER to stop...\n");
+    getchar();
 
     err = Pa_StopStream( stream );
     if( err != paNoError ) goto error;
