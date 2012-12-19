@@ -47,11 +47,6 @@
 #include "portaudio.h"
 #include "pa_util.h"
 
-#ifdef _WIN32
-#include "pa_win_wdmks.h"
-#include "pa_win_waveformat.h"
-#endif
-
 #ifndef _WIN32
 /* Emulates _kbhit on Unix-like platform (http://stackoverflow.com/questions/448944/c-non-blocking-keyboard-input) */
 #include <sys/select.h>
@@ -157,11 +152,7 @@ int main(void)
     const PaDeviceInfo *info;
     PaError err;
     paTestData data = {0};
-#ifdef _WIN32
-    PaWinWDMKSInfo wdmksInfo = {sizeof(PaWinWDMKSInfo), paWDMKS, 1, paWinWDMKSUseGivenChannelMask, 0, PAWIN_SPEAKER_DIRECTOUT};
-#endif
     unsigned i;
-
     
     printf("PortAudio Test: output sine wave on each available channel. SR = %d, BufSize = %d\n", SAMPLE_RATE, FRAMES_PER_BUFFER);
     
@@ -190,11 +181,7 @@ int main(void)
 
     outputParameters.sampleFormat = paFloat32; /* 32 bit floating point output, interleaved */
     outputParameters.suggestedLatency = info->defaultLowOutputLatency;
-#ifdef _WIN32
-    outputParameters.hostApiSpecificStreamInfo = &wdmksInfo;
-#else
     outputParameters.hostApiSpecificStreamInfo = NULL;
-#endif
 
     data.noOfChannels = outputParameters.channelCount;
     data.channels = (paChannelData*)PaUtil_AllocateMemory(data.noOfChannels * sizeof(paChannelData));

@@ -4462,14 +4462,15 @@ static PaError OpenStream( struct PaUtilHostApiRepresentation *hostApi,
         PaWinWdmFilter* pFilter;
         PaWinWdmDeviceInfo* pDeviceInfo;
         PaWinWdmPin* pPin;
+        PaWinWDMKSInfo* pInfo = (PaWinWDMKSInfo*)(outputParameters->hostApiSpecificStreamInfo);
         unsigned validBitsPerSample = 0;
         PaWinWaveFormatChannelMask channelMask = PaWin_DefaultChannelMask( userOutputChannels );
-        if (((PaWinWDMKSInfo*)outputParameters->hostApiSpecificStreamInfo)->flags & paWinWDMKSUseGivenChannelMask)
+        if (pInfo && (pInfo->flags & paWinWDMKSUseGivenChannelMask))
         {
             PA_DEBUG(("Using channelMask 0x%08X instead of default 0x%08X\n",
-                ((PaWinWDMKSInfo*)outputParameters->hostApiSpecificStreamInfo)->channelMask,
+                pInfo->channelMask,
                 channelMask));
-            channelMask = ((PaWinWDMKSInfo*)outputParameters->hostApiSpecificStreamInfo)->channelMask;
+            channelMask = pInfo->channelMask;
         }
 
         result = paSampleFormatNotSupported;
