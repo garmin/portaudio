@@ -64,6 +64,9 @@ extern "C"
            packets, which will be detected by a timeout. Setting this flag prohibits that */
         paWinWDMKSDisableTimeoutInProcessingThread = (1 << 1),
 
+        /* Makes WDMKS (output stream) use the given channelMask instead of the default */
+        paWinWDMKSUseGivenChannelMask = (1 << 2),
+
     } PaWinWDMKSFlags;
 
     typedef struct PaWinWDMKSInfo{
@@ -74,6 +77,8 @@ extern "C"
 
         /* The number of packets to use for WaveCyclic devices, range is [2, 8]. Set to zero for default value of 2. */
         unsigned noOfPackets;
+        /* If paWinWDMKSUseGivenChannelMask bit is set in flags, use this as channelMask instead of default */
+        unsigned channelMask;
     } PaWinWDMKSInfo;
 
     typedef enum PaWDMKSType

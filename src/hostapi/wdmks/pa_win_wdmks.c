@@ -4128,7 +4128,8 @@ static unsigned NextPowerOf2(unsigned val)
 
 static PaError ValidateSpecificStreamParameters(
     const PaStreamParameters *streamParameters,
-    const PaWinWDMKSInfo *streamInfo)
+    const PaWinWDMKSInfo *streamInfo,
+    unsigned isInput)
 {
     if( streamInfo )
     {
@@ -4139,7 +4140,7 @@ static PaError ValidateSpecificStreamParameters(
             return paIncompatibleHostApiSpecificStreamInfo;
         }
 
-        if (!!(streamInfo->flags & ~(paWinWDMKSOverrideFramesize | paWinWDMKSDisableTimeoutInProcessingThread)))
+        if (!!(streamInfo->flags & ~(paWinWDMKSOverrideFramesize | paWinWDMKSDisableTimeoutInProcessingThread | paWinWDMKSUseGivenChannelMask)))
         {
             PA_DEBUG(("Stream parameters: non supported flags set"));
             return paIncompatibleHostApiSpecificStreamInfo;
@@ -4150,6 +4151,21 @@ static PaError ValidateSpecificStreamParameters(
         {
             PA_DEBUG(("Stream parameters: noOfPackets %u out of range [2,8]", streamInfo->noOfPackets));
             return paIncompatibleHostApiSpecificStreamInfo;
+        }
+
+        if (streamInfo->flags & paWinWDMKSUseGivenChannelMask)
+        {
+            if (isInput)
+            {
+                PA_DEBUG(("Stream parameters: Channels mask setting not supported for input stream"));
+                return paIncompatibleHostApiSpecificStreamInfo;
+            }
+
+            if (streamInfo->channelMask & PAWIN_SPEAKER_RESERVED)
+            {
+                PA_DEBUG(("Stream parameters: Given channels mask 0x%08X not supported", streamInfo->channelMask));
+                return paIncompatibleHostApiSpecificStreamInfo;
+            }
         }
 
     }
@@ -4206,7 +4222,7 @@ static PaError OpenStream( struct PaUtilHostApiRepresentation *hostApi,
         }
 
         /* validate inputStreamInfo */
-        result = ValidateSpecificStreamParameters(inputParameters, inputParameters->hostApiSpecificStreamInfo);
+        result = ValidateSpecificStreamParameters(inputParameters, inputParameters->hostApiSpecificStreamInfo, 1);
         if(result != paNoError)
         {
             PaWinWDM_SetLastErrorInfo(result, "Host API stream info not supported (in)");
@@ -4241,7 +4257,7 @@ static PaError OpenStream( struct PaUtilHostApiRepresentation *hostApi,
         }
 
         /* validate outputStreamInfo */
-        result = ValidateSpecificStreamParameters( outputParameters, outputParameters->hostApiSpecificStreamInfo );
+        result = ValidateSpecificStreamParameters( outputParameters, outputParameters->hostApiSpecificStreamInfo, 0 );
         if (result != paNoError)
         {
             PaWinWDM_SetLastErrorInfo(result, "Host API stream info not supported (out)");
@@ -4448,6 +4464,13 @@ static PaError OpenStream( struct PaUtilHostApiRepresentation *hostApi,
         PaWinWdmPin* pPin;
         unsigned validBitsPerSample = 0;
         PaWinWaveFormatChannelMask channelMask = PaWin_DefaultChannelMask( userOutputChannels );
+        if (((PaWinWDMKSInfo*)outputParameters->hostApiSpecificStreamInfo)->flags & paWinWDMKSUseGivenChannelMask)
+        {
+            PA_DEBUG(("Using channelMask 0x%08X instead of default 0x%08X\n",
+                ((PaWinWDMKSInfo*)outputParameters->hostApiSpecificStreamInfo)->channelMask,
+                channelMask));
+            channelMask = ((PaWinWDMKSInfo*)outputParameters->hostApiSpecificStreamInfo)->channelMask;
+        }
 
         result = paSampleFormatNotSupported;
         pDeviceInfo = (PaWinWdmDeviceInfo*)wdmHostApi->inheritedHostApiRep.deviceInfos[outputParameters->device];

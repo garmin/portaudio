@@ -47,6 +47,26 @@
 #include "portaudio.h"
 #include "pa_util.h"
 
+#ifdef _WIN32
+#include "pa_win_wdmks.h"
+#include "pa_win_waveformat.h"
+#endif
+
+#ifndef _WIN32
+/* Emulates _kbhit on Unix-like platform (http://stackoverflow.com/questions/448944/c-non-blocking-keyboard-input) */
+#include <sys/select.h>
+int _kbhit()
+{
+    struct timeval tv = { 0L, 0L };
+    fd_set fds;
+    FD_ZERO(&fds);
+    FD_SET(0, &fds);
+    return select(1, &fds, NULL, NULL, &tv);
+}
+#else
+#include <conio.h>
+#endif
+
 #define NUM_SECONDS_PER_CHANNEL   (1)
 #define SAMPLE_RATE   (44100)
 #define FRAMES_PER_BUFFER  (64)
@@ -89,9 +109,7 @@ static int patestCallback( const void *inputBuffer, void *outputBuffer,
 {
     const unsigned kCount = SAMPLE_RATE * NUM_SECONDS_PER_CHANNEL;
     paTestData *data = (paTestData*)userData;
-    paChannelData* channel = data->channels + data->currentChannel;
-
-    unsigned long i = 0, ch;
+    unsigned long i = 0;
 
     (void) timeInfo; /* Prevent unused variable warnings. */
     (void) statusFlags;
@@ -99,14 +117,9 @@ static int patestCallback( const void *inputBuffer, void *outputBuffer,
     
 
 wrap:
-    for (ch = 0; ch < data->noOfChannels; ++ch)
     {
-        float * out = 0;
-        if (ch != data->currentChannel)
-            continue;
-
-        out = ((float*)outputBuffer) + ch;
-
+        paChannelData* channel = data->channels + data->currentChannel;
+        float * out = ((float*)outputBuffer) + data->currentChannel;
         for(; i<framesPerBuffer; ++i, out += data->noOfChannels)
         {
             unsigned whole = (unsigned)channel->phase_;
@@ -144,9 +157,8 @@ int main(void)
     const PaDeviceInfo *info;
     PaError err;
     paTestData data = {0};
-#ifdef __APPLE__
-    PaMacCoreStreamInfo macInfo;
-    const SInt32 channelMap[4] = { -1, -1, 0, 1 };
+#ifdef _WIN32
+    PaWinWDMKSInfo wdmksInfo = {sizeof(PaWinWDMKSInfo), paWDMKS, 1, paWinWDMKSUseGivenChannelMask, 0, PAWIN_SPEAKER_DIRECTOUT};
 #endif
     unsigned i;
 
@@ -178,7 +190,11 @@ int main(void)
 
     outputParameters.sampleFormat = paFloat32; /* 32 bit floating point output, interleaved */
     outputParameters.suggestedLatency = info->defaultLowOutputLatency;
+#ifdef _WIN32
+    outputParameters.hostApiSpecificStreamInfo = &wdmksInfo;
+#else
     outputParameters.hostApiSpecificStreamInfo = NULL;
+#endif
 
     data.noOfChannels = outputParameters.channelCount;
     data.channels = (paChannelData*)PaUtil_AllocateMemory(data.noOfChannels * sizeof(paChannelData));
@@ -192,7 +208,7 @@ int main(void)
         paChannelData* channel = data.channels + i;
         channel->cntr = 0;
         channel->phase_ = 0.f;
-        channel->phaseIncr_ = (440.0f * powf(2.f, (2.f * i) / 12.f)) * TABLE_SIZE / SAMPLE_RATE;
+        channel->phaseIncr_ = (440.0f * powf(4.f, i / 12.f)) * TABLE_SIZE / SAMPLE_RATE;
     }
 
     printf("Using device '%s' with %d channels\n", info->name, info->maxOutputChannels);
@@ -211,8 +227,18 @@ int main(void)
     err = Pa_StartStream( stream );
     if( err != paNoError ) goto error;
 
-    printf("Hit ENTER to stop...\n");
-    getchar();
+    printf("Hit any key to stop...\n");
+    {
+        unsigned channelOld = (unsigned)-1;
+        while (_kbhit() == 0) {
+            if (data.currentChannel != channelOld) 
+            {
+                printf("Playing on channel %u\n", data.currentChannel + 1);
+                channelOld = data.currentChannel;
+            }
+            Pa_Sleep(20);
+        }
+    }
 
     err = Pa_StopStream( stream );
     if( err != paNoError ) goto error;
