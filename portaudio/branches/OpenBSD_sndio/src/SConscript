@@ -69,6 +69,8 @@ if Platform in Posix:
     neededLibs += [("pthread", "pthread.h", "pthread_create"), ("m", "math.h", "sin")]
     if env["useALSA"]:
         optionalImpls["ALSA"] = ("asound", "alsa/asoundlib.h", "snd_pcm_open")
+    if env["useSNDIO"]:
+        optionalImpls["SNDIO"] = ("sndio", "sndio.h", "sio_open")
     if env["useJACK"]:
         optionalImpls["JACK"] = ("jack", "jack/jack.h", "jack_client_new")
     if env["useOSS"]:
@@ -171,6 +173,8 @@ if Platform in Posix:
 
 if "ALSA" in optionalImpls:
     ImplSources.append(os.path.join("hostapi", "alsa", "pa_linux_alsa.c"))
+if "SNDIO" in optionalImpls:
+    ImplSources.append(os.path.join("hostapi", "sndio", "pa_sndio.c"))
 if "JACK" in optionalImpls:
     ImplSources.append(os.path.join("hostapi", "jack", "pa_jack.c"))
 if "OSS" in optionalImpls:
