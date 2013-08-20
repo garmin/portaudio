@@ -54,12 +54,7 @@
 #include "pa_stream.h"
 #include "pa_process.h"
 #include "pa_allocation.h"
-
-#if 0
-#define DPR(...) do { fprintf(stderr, __VA_ARGS__); } while (0)
-#else
-#define DPR(...) do {} while (0)
-#endif
+#include "pa_debugprint.h"
 
 /*
  * per-stream data
@@ -134,7 +129,7 @@ static int sndioSetFmt(struct sio_par *sio, PaSampleFormat fmt)
         sio->bits = 8;
         break;
     default:
-        DPR("sndioSetFmt: %x: unsupported\n", fmt);
+        PA_DEBUG(("sndioSetFmt: %x: unsupported\n", fmt));
         return 0;
     }
     sio->le = SIO_LE_NATIVE;
@@ -148,8 +143,8 @@ static int sndioGetFmt(struct sio_par *sio, PaSampleFormat *fmt)
 {
     if ((sio->bps * 8 != sio->bits && !sio->msb) ||
         (sio->bps > 1 && sio->le != SIO_LE_NATIVE)) {
-        DPR("sndioGetFmt: bits = %u, le = %u, msb = %u, bps = %u\n",
-            sio->bits, sio->le, sio->msb, sio->bps);
+	PA_DEBUG(("sndioGetFmt: bits = %u, le = %u, msb = %u, bps = %u\n",
+	    sio->bits, sio->le, sio->msb, sio->bps));
         return 0;
     }
 
@@ -173,7 +168,7 @@ static int sndioGetFmt(struct sio_par *sio, PaSampleFormat *fmt)
         *fmt = sio->sig ? paInt8 : paUInt8;
         break;
     default:
-        DPR("sndioGetFmt: %u: unsupported\n", sio->bits);
+        PA_DEBUG(("sndioGetFmt: %u: unsupported\n", sio->bits));
         return 0;
     }
     return 1;
@@ -193,8 +188,8 @@ static void *sndioThread(void *arg)
     rblksz = s->par.round * s->par.rchan * s->par.bps;
     wblksz = s->par.round * s->par.pchan * s->par.bps;
     
-    DPR("sndioThread: mode = %x, round = %u, rblksz = %u, wblksz = %u\n",
-        s->mode, s->par.round, rblksz, wblksz);
+    PA_DEBUG(("sndioThread: mode = %x, round = %u, rblksz = %u, wblksz = %u\n",
+	s->mode, s->par.round, rblksz, wblksz));
     
     while (!s->stopped) {
         if (s->mode & SIO_REC) {
@@ -203,7 +198,7 @@ static void *sndioThread(void *arg)
             while (todo > 0) {
                 n = sio_read(s->hdl, data, todo);
                 if (n == 0) {
-                    DPR("sndioThread: sio_read failed\n");
+                    PA_DEBUG(("sndioThread: sio_read failed\n"));
                     goto failed;
                 }
                 todo -= n;
@@ -232,8 +227,8 @@ static void *sndioThread(void *arg)
         result = paContinue;
         n = PaUtil_EndBufferProcessing(&s->bufproc, &result);
         if (n != s->par.round) {
-            DPR("sndioThread: %d < %u frames, result = %d\n",
-                n, s->par.round, result);
+            PA_DEBUG(("sndioThread: %d < %u frames, result = %d\n",
+		      n, s->par.round, result));
         }
         if (result != paContinue) {
             break;
@@ -241,7 +236,7 @@ static void *sndioThread(void *arg)
         if (s->mode & SIO_PLAY) {
             n = sio_write(s->hdl, s->wbuf, wblksz);
             if (n < wblksz) {
-                DPR("sndioThread: sio_write failed\n");
+                PA_DEBUG(("sndioThread: sio_write failed\n"));
                 goto failed;
             }
             s->wpos += s->par.round;
@@ -249,7 +244,7 @@ static void *sndioThread(void *arg)
     }
  failed:
     s->active = 0;
-    DPR("sndioThread: done\n");
+    PA_DEBUG(("sndioThread: done\n"));
 }
 
 static PaError OpenStream(struct PaUtilHostApiRepresentation *hostApi,
@@ -271,7 +266,7 @@ static PaError OpenStream(struct PaUtilHostApiRepresentation *hostApi,
     int inch, onch;
     PaSampleFormat ifmt, ofmt, siofmt;
 
-    DPR("OpenStream:\n");
+    PA_DEBUG(("OpenStream:\n"));
 
     mode = 0;
     inch = onch = 0;
@@ -280,11 +275,11 @@ static PaError OpenStream(struct PaUtilHostApiRepresentation *hostApi,
 
     if (outputPar && outputPar->channelCount > 0) {
         if (outputPar->device != 0) {
-            DPR("OpenStream: %d: bad output device\n", outputPar->device);
+            PA_DEBUG(("OpenStream: %d: bad output device\n", outputPar->device));
             return paInvalidDevice;
         }
         if (outputPar->hostApiSpecificStreamInfo) {
-            DPR("OpenStream: output specific info\n");
+            PA_DEBUG(("OpenStream: output specific info\n"));
             return paIncompatibleHostApiSpecificStreamInfo;
         }
         if (!sndioSetFmt(&par, outputPar->sampleFormat)) {
@@ -296,11 +291,11 @@ static PaError OpenStream(struct PaUtilHostApiRepresentation *hostApi,
     }
     if (inputPar && inputPar->channelCount > 0) {
         if (inputPar->device != 0) {
-            DPR("OpenStream: %d: bad input device\n", inputPar->device);
+            PA_DEBUG(("OpenStream: %d: bad input device\n", inputPar->device));
             return paInvalidDevice;
         }
         if (inputPar->hostApiSpecificStreamInfo) {
-            DPR("OpenStream: input specific info\n");
+            PA_DEBUG(("OpenStream: input specific info\n"));
             return paIncompatibleHostApiSpecificStreamInfo;
         }
         if (!sndioSetFmt(&par, inputPar->sampleFormat)) {
@@ -314,7 +309,7 @@ static PaError OpenStream(struct PaUtilHostApiRepresentation *hostApi,
     if (framesPerBuffer != paFramesPerBufferUnspecified)
         par.round = framesPerBuffer;
 
-    DPR("OpenStream: mode = %x, trying rate = %u\n", mode, par.rate);
+    PA_DEBUG(("OpenStream: mode = %x, trying rate = %u\n", mode, par.rate));
 
     hdl = sio_open(SIO_DEVANY, mode, 0);
     if (hdl == NULL)
@@ -332,18 +327,18 @@ static PaError OpenStream(struct PaUtilHostApiRepresentation *hostApi,
         return paSampleFormatNotSupported;
     }
     if ((mode & SIO_REC) && par.rchan != inputPar->channelCount) {
-        DPR("OpenStream: rchan(%u) != %d\n", par.rchan, inputPar->channelCount);
+        PA_DEBUG(("OpenStream: rchan(%u) != %d\n", par.rchan, inputPar->channelCount));
         sio_close(hdl);
         return paInvalidChannelCount;
     }
     if ((mode & SIO_PLAY) && par.pchan != outputPar->channelCount) {
-        DPR("OpenStream: pchan(%u) != %d\n", par.pchan, outputPar->channelCount);
+        PA_DEBUG(("OpenStream: pchan(%u) != %d\n", par.pchan, outputPar->channelCount));
         sio_close(hdl);
         return paInvalidChannelCount;
     }
     if ((double)par.rate < sampleRate * 0.995 ||
         (double)par.rate > sampleRate * 1.005) {
-        DPR("OpenStream: rate(%u) != %g\n", par.rate, sampleRate);
+        PA_DEBUG(("OpenStream: rate(%u) != %g\n", par.rate, sampleRate));
         sio_close(hdl);
         return paInvalidSampleRate;
     }
@@ -356,8 +351,8 @@ static PaError OpenStream(struct PaUtilHostApiRepresentation *hostApi,
     PaUtil_InitializeStreamRepresentation(&s->base, 
         streamCallback ? &sndioHostApi->callback : &sndioHostApi->blocking,
         streamCallback, userData);
-    DPR("inch = %d, onch = %d, ifmt = %x, ofmt = %x\n", 
-        inch, onch, ifmt, ofmt);
+    PA_DEBUG(("inch = %d, onch = %d, ifmt = %x, ofmt = %x\n", 
+        inch, onch, ifmt, ofmt));
     err = PaUtil_InitializeBufferProcessor(&s->bufproc,
         inch, ifmt, siofmt,
         onch, ofmt, siofmt,
@@ -368,7 +363,7 @@ static PaError OpenStream(struct PaUtilHostApiRepresentation *hostApi,
         paUtilFixedHostBufferSize, 
         streamCallback, userData);
     if (err) {
-        DPR("OpenStream: PaUtil_InitializeBufferProcessor failed\n");
+        PA_DEBUG(("OpenStream: PaUtil_InitializeBufferProcessor failed\n"));
         PaUtil_FreeMemory(s);
         sio_close(hdl);
         return err;
@@ -376,7 +371,7 @@ static PaError OpenStream(struct PaUtilHostApiRepresentation *hostApi,
     if (mode & SIO_REC) {
         s->rbuf = malloc(par.round * par.rchan * par.bps);
         if (s->rbuf == NULL) {
-            DPR("OpenStream: failed to allocate rbuf\n");
+            PA_DEBUG(("OpenStream: failed to allocate rbuf\n"));
             PaUtil_FreeMemory(s);
             sio_close(hdl);
             return paInsufficientMemory;
@@ -385,7 +380,7 @@ static PaError OpenStream(struct PaUtilHostApiRepresentation *hostApi,
     if (mode & SIO_PLAY) {
         s->wbuf = malloc(par.round * par.pchan * par.bps);
         if (s->wbuf == NULL) {
-            DPR("OpenStream: failed to allocate wbuf\n");
+            PA_DEBUG(("OpenStream: failed to allocate wbuf\n"));
             free(s->rbuf);
             PaUtil_FreeMemory(s);
             sio_close(hdl);
@@ -402,7 +397,7 @@ static PaError OpenStream(struct PaUtilHostApiRepresentation *hostApi,
     s->hdl = hdl;
     s->par = par;
     *stream = s;    
-    DPR("OpenStream: done\n");
+    PA_DEBUG(("OpenStream: done\n"));
     return paNoError;
 }
 
@@ -430,7 +425,7 @@ static PaError BlockingReadStream(PaStream *stream, void *data, unsigned long nu
         PaUtil_SetInterleavedInputChannels(&s->bufproc, 0, s->rbuf, s->par.rchan);
         res = PaUtil_CopyInput(&s->bufproc, &data, n);
         if (res != n) {
-            DPR("BlockingReadStream: copyInput: %u != %u\n");
+            PA_DEBUG(("BlockingReadStream: copyInput: %u != %u\n"));
             return paUnanticipatedHostError;
         }
         numFrames -= n;
@@ -451,7 +446,7 @@ static PaError BlockingWriteStream(PaStream* stream, const void *data, unsigned 
         PaUtil_SetInterleavedOutputChannels(&s->bufproc, 0, s->wbuf, s->par.pchan);
         res = PaUtil_CopyOutput(&s->bufproc, &data, n);
         if (res != n) {
-            DPR("BlockingWriteStream: copyOutput: %u != %u\n");
+            PA_DEBUG(("BlockingWriteStream: copyOutput: %u != %u\n"));
             return paUnanticipatedHostError;
         }
         res = sio_write(s->hdl, s->wbuf, n * s->par.pchan * s->par.bps);
@@ -511,7 +506,7 @@ static PaError BlockingWaitEmpty( PaStream *stream )
      * drain playback buffers; sndio always does it in background
      * and there is no way to wait for completion
      */
-    DPR("BlockingWaitEmpty: s=%d, a=%d\n", s->stopped, s->active);
+    PA_DEBUG(("BlockingWaitEmpty: s=%d, a=%d\n", s->stopped, s->active));
 
     return paNoError;
 }
@@ -522,10 +517,10 @@ static PaError StartStream(PaStream *stream)
     unsigned primes, wblksz;
     int err;
 
-    DPR("StartStream: s=%d, a=%d\n", s->stopped, s->active);
+    PA_DEBUG(("StartStream: s=%d, a=%d\n", s->stopped, s->active));
 
     if (!s->stopped) {
-        DPR("StartStream: already started\n");
+        PA_DEBUG(("StartStream: already started\n"));
         return paNoError;
     }
     s->stopped = 0;
@@ -549,10 +544,10 @@ static PaError StartStream(PaStream *stream)
     if (s->base.streamCallback) {
         err = pthread_create(&s->thread, NULL, sndioThread, s);
         if (err) {
-            DPR("SndioStartStream: couldn't create thread\n");
+            PA_DEBUG(("SndioStartStream: couldn't create thread\n"));
             return paUnanticipatedHostError;
         }
-        DPR("StartStream: started...\n");
+        PA_DEBUG(("StartStream: started...\n"));
     }
     return paNoError;
 }
@@ -563,17 +558,17 @@ static PaError StopStream(PaStream *stream)
     void *ret;
     int err;
 
-    DPR("StopStream: s=%d, a=%d\n", s->stopped, s->active);
+    PA_DEBUG(("StopStream: s=%d, a=%d\n", s->stopped, s->active));
 
     if (s->stopped) {
-        DPR("StartStream: already started\n");
+        PA_DEBUG(("StartStream: already started\n"));
         return paNoError;
     }
     s->stopped = 1;
     if (s->base.streamCallback) {
         err = pthread_join(s->thread, &ret);
         if (err) {
-            DPR("SndioStop: couldn't join thread\n");
+            PA_DEBUG(("SndioStop: couldn't join thread\n"));
             return paUnanticipatedHostError;
         }
     }
@@ -586,7 +581,7 @@ static PaError CloseStream(PaStream *stream)
 {
     PaSndioStream *s = (PaSndioStream *)stream;
 
-    DPR("CloseStream:\n");
+    PA_DEBUG(("CloseStream:\n"));
 
     if (!s->stopped)
         StopStream(stream);
@@ -604,7 +599,7 @@ static PaError CloseStream(PaStream *stream)
 
 static PaError AbortStream(PaStream *stream)
 {
-    DPR("AbortStream:\n");
+    PA_DEBUG(("AbortStream:\n"));
 
     return StopStream(stream);
 }
@@ -613,7 +608,7 @@ static PaError IsStreamStopped(PaStream *stream)
 {
     PaSndioStream *s = (PaSndioStream *)stream;
 
-    //DPR("IsStreamStopped: s=%d, a=%d\n", s->stopped, s->active);
+    //PA_DEBUG(("IsStreamStopped: s=%d, a=%d\n", s->stopped, s->active));
 
     return s->stopped;
 }
@@ -622,7 +617,7 @@ static PaError IsStreamActive(PaStream *stream)
 {
     PaSndioStream *s = (PaSndioStream *)stream;
 
-    //DPR("IsStreamActive: s=%d, a=%d\n", s->stopped, s->active);
+    //PA_DEBUG(("IsStreamActive: s=%d, a=%d\n", s->stopped, s->active));
 
     return s->active;
 }
@@ -653,7 +648,7 @@ PaError PaSndio_Initialize(PaUtilHostApiRepresentation **hostApi, PaHostApiIndex
     PaDeviceInfo *info;
     struct sio_hdl *hdl;
     
-    DPR("PaSndio_Initialize: initializing...\n");
+    PA_DEBUG(("PaSndio_Initialize: initializing...\n"));
 
     /* unusable APIs should return paNoError and a NULL hostApi */
     *hostApi = NULL;
@@ -715,6 +710,6 @@ PaError PaSndio_Initialize(PaUtilHostApiRepresentation **hostApi, PaHostApiIndex
         PaUtil_DummyGetReadAvailable,
         PaUtil_DummyGetWriteAvailable);
 
-    DPR("PaSndio_Initialize: done\n");
+    PA_DEBUG(("PaSndio_Initialize: done\n"));
     return paNoError;
 }
