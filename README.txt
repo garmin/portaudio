@@ -77,7 +77,7 @@ Host API Implementations:
     src/hostapi/dsound      = Windows Direct Sound
     src/hostapi/jack        = JACK Audio Connection Kit
     src/hostapi/oss         = Unix Open Sound System (OSS)
-    src/hostapi/sndio       = sndio
+    src/hostapi/sndio       = OpenBSD sndio
     src/hostapi/wasapi      = Windows Vista WASAPI
     src/hostapi/wdmks       = Windows WDM Kernel Streaming
     src/hostapi/wmme        = Windows MultiMedia Extensions (MME)
