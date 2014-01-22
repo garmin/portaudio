@@ -1512,20 +1512,9 @@ static PaWinWdmPin* PinNew(PaWinWdmFilter* parentFilter, unsigned long pinId, Pa
     if( result != paNoError )
         goto error;
 
-    /* If WaveRT, check if pin supports notification mode */
-    if (parentFilter->devInfo.streamingType == Type_kWaveRT)
-    {
-        BOOL bSupportsNotification = FALSE;
-        if (PinQueryNotificationSupport(pin, &bSupportsNotification) == paNoError)
-        {
-            pin->pinKsSubType = bSupportsNotification ? SubType_kNotification : SubType_kPolled;
-        }
-    }
-
     /* Query pin name (which means we need to traverse to non IRP pin, via physical connection to topology filter pin, through
     its nodes to the endpoint pin, and get that ones name... phew...) */
     PA_DEBUG(("PinNew: Finding topology pin...\n"));
-
     {
         ULONG topoPinId = GetConnectedPin(pinId, (pin->dataFlow == KSPIN_DATAFLOW_IN), parentFilter, -1, NULL, NULL);
         const wchar_t kInputName[] = L"Input";
@@ -2095,6 +2084,17 @@ static PaError PinInstantiate(PaWinWdmPin* pin)
             pin->frameSize = ksaf.FrameSize;
         }
     }
+
+    /* If WaveRT, check if pin supports notification mode */
+    if (pin->parentFilter->devInfo.streamingType == Type_kWaveRT)
+    {
+        BOOL bSupportsNotification = FALSE;
+        if (PinQueryNotificationSupport(pin, &bSupportsNotification) == paNoError)
+        {
+            pin->pinKsSubType = bSupportsNotification ? SubType_kNotification : SubType_kPolled;
+        }
+    }
+
 
     PA_LOGL_;
 
